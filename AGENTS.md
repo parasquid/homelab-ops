@@ -35,6 +35,10 @@ These instructions apply to every task performed from this repository.
   secret mechanism. Avoid placing them in command arguments or shell history.
 - Protect local secret-bearing files with mode `0600` and their directories
   with mode `0700` where practical.
+- Store LUKS automation keys outside the repository. Put only the external key
+  directory or key reference in `.env`; do not store a raw LUKS key there.
+- Pass LUKS key material through standard input. Never put it in cloud-init,
+  the VM filesystem, a command argument, or deployment output.
 
 ## Deployment defaults
 
@@ -56,6 +60,9 @@ These instructions apply to every task performed from this repository.
 - Automatically update application containers from the selected stable channel
   at the configured maintenance time. Preview channels require an explicit
   profile choice. Keep database images within a selected major version.
+- When a profile selects guest LUKS encryption, use a separate encrypted data
+  disk for application configuration, secrets, Docker state, and persistent
+  data. Leave no application secret or Docker metadata on the OS disk.
 
 ## Safe execution
 
@@ -63,6 +70,9 @@ These instructions apply to every task performed from this repository.
 - Do not overwrite an unrelated DNS record or an existing VM.
 - Do not delete a VM, disk, volume, backup, DNS record, or application data
   without explicit authorization and an exact target check.
+- Before formatting a LUKS target, verify its stable device identifier, expected
+  size, VM attachment, and absence of existing signatures or data. Treat a
+  mismatch as a hard stop.
 - Do not automatically prune the previous container image before the updated
   service passes its health checks.
 - When interactive Tailscale authorization is required, provide only the
@@ -77,6 +87,8 @@ A deployment is complete only after recording and verifying:
 - DNS resolution, certificate validity, application health, and database health.
 - Intended listener bindings and absence of unintended LAN or public exposure.
 - Persistence and automatic service recovery after a VM reboot.
+- For encrypted deployments, the locked-boot state, remote unlock path, service
+  start after unlock, recovery keyslot, and off-VM header backup.
 - The configured update policy and the outcome of an update-path test.
 - Backup status, including an explicit statement when backups are deferred.
 - A sanitized deployment record containing versions, paths, tests, exceptions,

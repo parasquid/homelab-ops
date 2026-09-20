@@ -91,7 +91,63 @@ Verify login as `VM_ADMIN_USER` and verify passwordless sudo. Direct root login
 inside the VM is a recovery path rather than the standard administration path.
 The Proxmox node continues to use its own administrator from `.env`.
 
-## 6. Install Docker and lay out the application
+## 6. Configure optional guest LUKS encryption
+
+Use `guest-luks-data` when the service profile must protect application state
+from someone obtaining a copy of its VM disks. This protects data at rest; it
+does not protect an unlocked running VM from the Proxmox administrator or a
+compromised hypervisor.
+
+The version 1 pattern uses two virtual disks:
+
+```text
+OS disk          Replaceable Debian installation and Tailscale bootstrap
+LUKS data disk   Docker state, Compose configuration, secrets, and service data
+```
+
+The OS disk remains bootable so the VM can join Tailscale for remote unlock.
+This means its Tailscale node state and SSH host keys are not protected by the
+data disk. Revoke the Tailscale device immediately if an OS image is suspected
+to have been copied.
+
+Keep the per-service automation key outside the repository and outside the VM.
+The local `.env` contains only `LUKS_KEY_DIRECTORY`. Generate a unique,
+high-entropy key file for each service, protect it with mode `0600`, and keep a
+separate recovery copy.
+
+Before formatting, resolve the added disk through a stable `/dev/disk/by-id`
+path and verify its serial, capacity, VM attachment, and lack of existing
+signatures. Never rely on a transient name such as `/dev/sdb` without those
+checks.
+
+Pass the key through standard input for both format and unlock operations. A
+remote unlock follows this pattern:
+
+```bash
+ssh "${VM_ADMIN_USER}@${VM_HOST}" \
+  'sudo cryptsetup open /dev/disk/by-id/<verified-disk> service-data --key-file=-' \
+  < "${LUKS_KEY_FILE}"
+```
+
+Create a filesystem and mount the mapper at the profile's mount point. Place
+Docker's data root, `/opt/<service>`, application secrets, and all persistent
+bind mounts on this filesystem. Configure Docker, Caddy, and the application so
+they cannot start before the encrypted filesystem is mounted. Caddy's API token
+belongs in a protected environment file on the encrypted disk, while the
+Caddyfile itself contains only an environment reference.
+
+Add a separate human recovery passphrase in another LUKS keyslot and store it
+in a password manager. Create a LUKS header backup after configuring the
+keyslots, store it outside the VM and its Proxmox storage, and protect it as
+sensitive recovery material. Refresh the header backup whenever keyslots
+change.
+
+With remote-script unlock, unattended application recovery after a VM reboot is
+deliberately disabled. The VM and Tailscale start, but Docker, Caddy, and the
+application remain stopped until the data disk is unlocked, mounted, and the
+services are started. Test both the locked and unlocked boot states.
+
+## 7. Install Docker and lay out the application
 
 Install Docker Engine and the Compose plugin from Docker's official repository.
 Create `/opt/<service>` and give the VM administrator appropriate ownership.
@@ -115,7 +171,7 @@ database credentials.
 Start the stack, wait for health checks, and test its loopback endpoint before
 adding DNS or Caddy.
 
-## 7. Configure automatic application updates
+## 8. Configure automatic application updates
 
 The default policy tracks the application's stable release channel and updates
 daily at 03:00 local time. A preview channel must be named explicitly in the
@@ -138,7 +194,7 @@ Operating-system security updates are independent of container updates. Enable
 the distribution's unattended security updates; handle distribution releases
 and database-major upgrades manually.
 
-## 8. Configure private DNS and HTTPS
+## 9. Configure private DNS and HTTPS
 
 Create a DNS-only Cloudflare `A` record for the service hostname pointing to the
 VM's Tailscale IPv4 address. Check for an existing record first. Do not overwrite
@@ -174,7 +230,7 @@ Configure the application with its external HTTPS URL and trusted-proxy setting
 when required. Do not assume every application interprets forwarded headers the
 same way; verify against its current upstream documentation.
 
-## 9. Validate the deployment
+## 10. Validate the deployment
 
 Run and record these acceptance checks:
 
@@ -194,7 +250,11 @@ Run and record these acceptance checks:
 11. Backup status and restore instructions are documented, including when
     backup work is deliberately deferred.
 
-## 10. Handoff and lifecycle
+For `guest-luks-data`, replace check 9 with the expected encrypted sequence:
+Tailscale recovers while the application remains stopped, remote unlock mounts
+the data disk, and Docker, Caddy, and the application then return healthy.
+
+## 11. Handoff and lifecycle
 
 Produce a sanitized deployment record containing:
 
@@ -204,6 +264,8 @@ Produce a sanitized deployment record containing:
 - Configuration and persistent-data paths without secret values.
 - DNS, exposure mode, listeners, and access method.
 - Update schedule, backup status, health endpoint, and test results.
+- Encryption method, unlock procedure, key reference, recovery-key status, and
+  header-backup location without including any key material.
 - Routine start, stop, logs, update, reboot, and recovery commands.
 - All deviations from this runbook and all deferred work.
 

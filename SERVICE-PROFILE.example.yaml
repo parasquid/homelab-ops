@@ -46,6 +46,16 @@ storage:
   additional_disks: []
   host_mounts: []
 
+encryption:
+  # Supported in version 1: none | guest-luks-data
+  method: none
+  mount: null
+  unlock: null
+  key_source: null
+  recovery_keyslot: false
+  header_backup: false
+  unattended_boot: true
+
 updates:
   application: automatic
   channel: stable

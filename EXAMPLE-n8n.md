@@ -17,6 +17,18 @@ not a literal export of a live deployment.
 - The editor and webhook base URLs use the external HTTPS hostname.
 - Execution history is pruned according to the service profile.
 
+## Encryption pattern
+
+For stolen-image protection, attach a separate LUKS data disk and place Docker's
+data root, `/opt/n8n`, PostgreSQL data, the n8n encryption key, database
+credentials, and the Caddy API-token environment file on it. Keep the unique
+automation key outside the repository and VM, with a separate recovery
+passphrase and protected LUKS header backup.
+
+After reboot, Debian and Tailscale start from the OS disk. n8n, PostgreSQL, its
+task runner, Docker, and Caddy remain stopped until the encrypted disk is
+remotely unlocked and mounted.
+
 ## Persistent state
 
 Persist both the n8n home directory and PostgreSQL data. The n8n encryption key
@@ -43,4 +55,5 @@ and a small test workflow afterward.
 - A Code-node workflow uses the external task runner successfully.
 - A webhook is reachable from another tailnet-connected device.
 - The editor and database are unavailable through unintended LAN interfaces.
-- The stack and saved workflows survive a VM reboot.
+- After a VM reboot, the stack remains stopped while locked, then returns with
+  its saved workflows after remote unlock.

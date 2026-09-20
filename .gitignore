@@ -5,6 +5,7 @@
 *.local.yml
 private/
 secrets/
+luks-keys/
 *.pem
 *.key
 *.crt
