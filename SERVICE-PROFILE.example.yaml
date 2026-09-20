@@ -1,0 +1,66 @@
+# Copy to SERVICE-PROFILE.local.yaml before filling in site-specific values.
+
+service:
+  name: example
+  description: Private web application
+
+vm:
+  id: next-free
+  hostname: example
+  cpu: 2
+  memory_gib: 4
+  root_disk_gib: 32
+  storage_env: VM_STORAGE
+  bridge_env: PROXMOX_BRIDGE
+  autostart: true
+  qemu_guest_agent: true
+
+operating_system:
+  distribution: debian
+  release: stable
+  image: official-generic-cloud
+  checksum_required: true
+
+application:
+  method: docker-compose
+  directory: /opt/example
+  image: vendor/example
+  channel: stable
+  internal_port: 8080
+  health_path: /health
+  database:
+    type: none
+    major_version: null
+
+network:
+  exposure: tailscale-private
+  domain: example.${BASE_DOMAIN}
+  application_bind: 127.0.0.1
+  caddy_bind: tailscale-ipv4
+  cloudflare_proxy: false
+  public_ingress: false
+  lan_ports: []
+
+storage:
+  persistent_paths: []
+  additional_disks: []
+  host_mounts: []
+
+updates:
+  application: automatic
+  channel: stable
+  schedule: "daily 03:00"
+  database_major: pinned
+  os_security: automatic
+  healthcheck_after_update: true
+
+backups:
+  enabled: false
+  method: deferred
+  retention: null
+
+special:
+  gpu_passthrough: false
+  usb_passthrough: false
+  lan_discovery: false
+  inbound_webhooks: false
