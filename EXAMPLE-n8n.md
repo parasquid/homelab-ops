@@ -17,6 +17,10 @@ not a literal export of a live deployment.
 - The editor and webhook base URLs use the external HTTPS hostname.
 - Execution history is pruned according to the service profile.
 
+Use n8n's current `N8N_WEBHOOK_URL` environment variable for the public-facing
+webhook base URL. Keep the editor URL and protocol settings aligned with the
+same private HTTPS hostname.
+
 ## Encryption pattern
 
 For stolen-image protection, attach a separate LUKS data disk and place Docker's
@@ -35,6 +39,12 @@ Persist both the n8n home directory and PostgreSQL data. The n8n encryption key
 and database credentials are required recovery material and must be stored
 outside the public repository.
 
+When using the upstream PostgreSQL initialization example, install its shell
+script with mode `0755`. Confirm from the first-start logs that the application
+role and database were created before n8n starts. If the script was skipped,
+fix its permissions; recreate the PostgreSQL volume only while the deployment
+is still known to contain no user data.
+
 A database backup without the matching n8n encryption key cannot fully recover
 stored credentials. Treat them as one recovery set.
 
@@ -43,6 +53,12 @@ stored credentials. Treat them as one recovery set.
 Automatic updates may track the chosen stable n8n channel. Pull n8n and its task
 runner together so their versions remain compatible. Keep PostgreSQL on its
 selected major channel and handle future major migrations separately.
+
+Run the updater at the local 03:00 maintenance time only after confirming that
+the encrypted data mount is present. Use a non-overlapping lock, wait for the
+Compose health checks and n8n health endpoint, and retain the previous image
+until the updated stack is healthy. A locked post-reboot VM therefore leaves
+the updater harmlessly stopped until the data disk is unlocked and mounted.
 
 Because n8n updates may run database migrations, take the configured backup or
 snapshot before updating and verify login, workflow loading, task-runner health,

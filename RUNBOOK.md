@@ -70,7 +70,7 @@ users:
     groups: [sudo]
     shell: /bin/bash
     lock_passwd: true
-    sudo: ALL=(ALL:ALL) NOPASSWD: ALL
+    sudo: "ALL=(ALL:ALL) NOPASSWD: ALL"
 ```
 
 Provide an approved SSH public key when regular SSH is needed. Do not put a
@@ -168,6 +168,16 @@ Store application and database secrets in a protected environment file outside
 Git. Generate independent, random values for application encryption keys and
 database credentials.
 
+Any database initialization scripts mounted into an official container image
+must be readable and executable by the container's initialization process. Use
+mode `0755` for shell entrypoint scripts unless the image documents another
+requirement. A script that the host administrator can read may still fail
+inside the container because the entrypoint runs under a different UID. Check
+the database's first-start logs and verify that the expected application role
+and database exist before starting the application. If initialization fails,
+only recreate the database volume after proving that it contains no data that
+must be retained.
+
 Start the stack, wait for health checks, and test its loopback endpoint before
 adding DNS or Caddy.
 
@@ -186,9 +196,16 @@ docker compose up -d --remove-orphans
 ```
 
 Wrap this in a non-overlapping cron job or systemd timer. Retain bounded logs,
-wait for the defined health check, and report failures. Do not prune the previous
-images until the new deployment is healthy. When a deployment has no backup,
-record that risk explicitly before enabling automatic updates.
+first verify that any encrypted data mount is present, wait for the defined
+health check, and report failures. Do not prune the previous images until the
+new deployment is healthy. When a deployment has no backup, record that risk
+explicitly before enabling automatic updates.
+
+If the application directory is a symlink into the encrypted mount, run the
+updater from its resolved physical directory or pass an explicit Compose
+project directory. Compose resolves relative secret files, project names, and
+named volumes from that directory; invoking it through the symlink can create
+a parallel project with empty volumes or fail to find the secret file.
 
 Operating-system security updates are independent of container updates. Enable
 the distribution's unattended security updates; handle distribution releases
