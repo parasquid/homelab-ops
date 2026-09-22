@@ -1,0 +1,38 @@
+# Local operating context (ignored)
+
+Copy this file to `AGENTS.local.md`, replace the placeholders with deployment
+facts, and set mode `0600`. Keep credentials, tokens, key bytes, session values,
+and transient command output out of this file.
+
+## Documentation contract
+
+- `inventory.local.yaml` is the source of truth for site-specific identifiers,
+  paths, versions, and tested recovery facts.
+- This file records operator decisions, handoff status, and constraints.
+- Update both local files when access, encryption, backup, update, or
+  credential-provider behavior changes.
+- Update `updated_at` and `last_verified_at` when facts change; do not paste
+  health output or secret values.
+
+## Current handoff
+
+- `updated_at`: `YYYY-MM-DD`
+- `last_verified_at`: `YYYY-MM-DD`
+- Operator/owner: `<operator-managed outside this public repository>`
+- Signup policy: `<operator decision pending|closed|invite-only>`
+- Owner setup: `<pending|complete; record no credential here>`
+
+## Credential dependency
+
+- Bootstrap source: protected local files referenced by the private inventory.
+- Primary agent-managed store after bootstrap: Vaultwarden.
+- Vaultwarden's authoritative LUKS recovery material remains outside
+  Vaultwarden so the service can be unlocked before the store is available.
+- A gopass adapter is an optional future integration and is not implemented.
+
+## Service notes
+
+Record only sanitized operational facts and references here, such as locked-boot
+recovery, daily update time, rollback-only backup status, and the handoff URL
+shape. Keep live values in `inventory.local.yaml` and secrets in their external
+protected stores.

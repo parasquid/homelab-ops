@@ -1,0 +1,10 @@
+# Copy to .publication-denylist, put one exact deployment-specific value per
+# line, remove this file's comments if desired, and chmod 0600.
+#
+# Use this only for values that must never occur in tracked content: real
+# domains, addresses, usernames, hostnames, VM IDs, and unique serials.
+# Sanitized examples are intentionally not denylisted.
+# example.invalid
+# 192.0.2.10
+# operator-example
+# vm_id: 999

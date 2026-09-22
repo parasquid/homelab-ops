@@ -271,7 +271,45 @@ For `guest-luks-data`, replace check 9 with the expected encrypted sequence:
 Tailscale recovers while the application remains stopped, remote unlock mounts
 the data disk, and Docker, Caddy, and the application then return healthy.
 
-## 11. Handoff and lifecycle
+## 11. Vaultwarden reference pattern
+
+Vaultwarden follows the private VM pattern with one additional internal service:
+
+- Run Vaultwarden and Mailpit in Docker Compose on the encrypted data mount.
+  Mailpit captures Vaultwarden's SMTP during bootstrap and routine testing. Its
+  SMTP listener stays on the Compose network; expose its UI through the same
+  private HTTPS path only when an operator needs it.
+- Keep the application and Mailpit off LAN and public interfaces. Caddy binds
+  to the VM's Tailscale address. Cloudflare records for the application and
+  optional Mailpit UI are DNS-only and resolve to that Tailscale address;
+  Cloudflare proxying, Funnel, router forwarding, and public ingress remain
+  disabled.
+- Put Docker state, Compose files, Vaultwarden data, Mailpit data, and
+  protected environment files on the guest LUKS data disk. The OS disk holds
+  only the bootstrap needed to bring up Debian and Tailscale.
+- Treat boot as locked by default. Debian and Tailscale start, while Docker,
+  Caddy, Vaultwarden, and Mailpit wait for the encrypted mount. Use the local
+  unlock helper to pass the external automation key over standard input, open
+  the mapper, mount the filesystem, and start the stack. Verify the locked and
+  unlocked states after changes.
+- Run the application update job daily at 03:00 local time. It must verify the
+  encrypted mount, pull the selected channel, wait for health checks, retain
+  the previous image until the new stack is healthy, and report failures.
+- Same-disk encrypted rollback snapshots are useful for a bad update but are
+  not disaster recovery. Record their retention and the absence of an
+  external backup until a separate off-host backup has been tested.
+
+Owner creation and the signup policy are an operator handoff after the stack is
+reachable over private HTTPS. The agent may verify the setup path and Mailpit
+capture, but must not invent owner credentials or silently choose an account
+policy. During bootstrap, protected local files are the credential source. Once
+the owner completes setup, Vaultwarden is the primary agent-managed credential
+store. Its authoritative LUKS recovery material must remain outside Vaultwarden
+because it is required before Vaultwarden is available. A local-file bootstrap
+is the supported path; a gopass adapter is an optional future integration and
+is not implemented.
+
+## 12. Handoff and lifecycle
 
 Produce a sanitized deployment record containing:
 

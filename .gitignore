@@ -1,8 +1,14 @@
 .env
 .env.*
 !.env.example
+.envrc
+AGENTS.local.md
+inventory.local.yaml
+.publication-denylist
 *.local.yaml
 *.local.yml
+*.secret
+*.credentials
 private/
 secrets/
 luks-keys/

@@ -1,0 +1,162 @@
+# Copy to inventory.local.yaml, replace placeholders, and chmod 0600.
+# This is a private inventory template, not a deployment export.
+schema: 1
+updated_at: YYYY-MM-DD
+last_verified_at: YYYY-MM-DD
+
+site:
+  name: example-homelab
+  timezone: Etc/UTC
+  base_domain: example.invalid
+  proxmox:
+    host: example-node
+    node: example-node
+    admin_user: operator
+  network:
+    bridge: vmbr0
+    vm_storage: VM_STORAGE
+    data_storage: DATA_STORAGE
+  dns:
+    provider: cloudflare
+    proxy: false
+
+# Every managed service should carry this shape in the services map.
+service_schema:
+  vm_id: next-free
+  hostname: example-service
+  admin_user: operator
+  network:
+    exposure: tailscale-private
+    caddy_bind: tailscale-ipv4
+    cloudflare_proxy: false
+    public_ingress: false
+  application:
+    compose_directory: /opt/example-service
+    image: vendor/example-service
+    channel: stable
+    internal_port: 8080
+    health_path: /health
+  storage:
+    mount: /srv/example-service-data
+    persistent_paths: []
+  encryption:
+    method: none
+    unlock: none
+    key_reference: "<external protected reference or null>"
+    recovery_passphrase: "<external protected reference or null>"
+    header_backup: false
+    unattended_boot: true
+  updates:
+    channel: stable
+    schedule: daily-03:00-local
+    healthcheck_after_update: true
+  backups:
+    enabled: false
+    method: deferred
+    external_disaster_recovery: false
+  handoff:
+    owner_setup: pending-operator
+
+services:
+  example-service:
+    vm_id: next-free
+    hostname: example-service
+    admin_user: operator
+    network:
+      exposure: tailscale-private
+      caddy_bind: tailscale-ipv4
+      cloudflare_proxy: false
+      public_ingress: false
+    application:
+      compose_directory: /opt/example-service
+      image: vendor/example-service
+      channel: stable
+      internal_port: 8080
+      health_path: /health
+    storage:
+      mount: /srv/example-service-data
+      persistent_paths: []
+    encryption:
+      method: none
+      unlock: none
+      key_reference: "<external protected reference or null>"
+      recovery_passphrase: "<external protected reference or null>"
+      header_backup: false
+      unattended_boot: true
+    updates:
+      channel: stable
+      schedule: daily-03:00-local
+      healthcheck_after_update: true
+    backups:
+      enabled: false
+      method: deferred
+      external_disaster_recovery: false
+    handoff:
+      owner_setup: pending-operator
+
+  vaultwarden:
+    vm_id: next-free
+    hostname: vaultwarden.example.invalid
+    admin_user: operator
+    network:
+      exposure: tailscale-private
+      caddy_bind: tailscale-ipv4
+      cloudflare_proxy: false
+      public_ingress: false
+      smtp: compose-network-only
+    application:
+      compose_directory: /srv/vaultwarden-data/app
+      image: vaultwarden/server
+      channel: stable
+      internal_port: 80
+      health_path: /alive
+    mailpit:
+      smtp_capture: internal-compose-service
+      ui_private_https: true
+    storage:
+      mount: /srv/vaultwarden-data
+      persistent_paths:
+        - /srv/vaultwarden-data/app
+        - /srv/vaultwarden-data/docker
+        - /srv/vaultwarden-data/secrets
+      rollback_retention: 7
+      external_disaster_recovery: false
+    encryption:
+      method: guest-luks-data
+      mapper: vaultwarden-data
+      unlock: local-helper-over-stdin
+      key_reference: "<external protected file reference>"
+      recovery_passphrase: "<external protected recovery reference>"
+      header_backup: true
+      unattended_boot: false
+    updates:
+      channel: stable
+      schedule: daily-03:00-local
+      healthcheck_after_update: true
+    backups:
+      enabled: true
+      method: same-disk-encrypted-rollback
+      external_disaster_recovery: false
+    handoff:
+      owner_setup: pending-operator
+      signup_policy: pending-operator
+
+# Vaultwarden is the primary store only after bootstrap. Its own recovery
+# material must stay outside it so the service can be unlocked first.
+vaultwarden_credential_provider:
+  bootstrap:
+    method: local-files
+    secret_references:
+      owner_bootstrap: "<protected local file reference>"
+      application_admin: "<protected local file reference>"
+      smtp_capture: "<protected local file reference>"
+      cloudflare_api_token: "<external file reference>"
+  primary_store_after_bootstrap: vaultwarden
+  authoritative_luks_recovery:
+    location: outside-vaultwarden
+    reference: "<external protected recovery location>"
+  gopass_adapter: optional-future-not-implemented
+
+publication:
+  denylist_file: .publication-denylist
+  scan_tracked_content_before_publish: true

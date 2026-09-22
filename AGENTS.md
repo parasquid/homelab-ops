@@ -2,6 +2,29 @@
 
 These instructions apply to every task performed from this repository.
 
+## Public reference and private inventory
+
+Tracked files are reusable procedures, sanitized examples, and templates. They
+must not contain site-specific domains, addresses, usernames, hostnames, VM
+IDs, credentials, tokens, key material, or transient health output.
+Reserved example values, placeholders, and generic service names are allowed
+when they are clearly presented as examples.
+
+Before any task, read this file and then read `AGENTS.local.md` and
+`inventory.local.yaml` when those ignored files are present. Read `RUNBOOK.md`
+and the selected service profile before infrastructure work. The local files
+hold deployment-specific facts and operator handoff; do not copy their live
+values into tracked files.
+
+Keep the two layers consistent: infrastructure work is incomplete until the
+deployment-specific changes update `inventory.local.yaml` and the ignored
+handoff. Reusable procedure or pattern changes update the tracked runbook and
+the relevant `.example` files. Access, encryption, backup, update, and
+credential-provider changes update both layers. Before final reporting,
+validate the relevant Markdown, YAML, and shell files and run the publication
+safety check. Update suitable `updated_at` or `last_verified_at` fields, but
+do not store transient health output or secrets in either documentation layer.
+
 ## Access model
 
 - Treat the Proxmox node and its VMs as different systems.
