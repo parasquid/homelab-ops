@@ -194,6 +194,21 @@ vaultwarden_credential_provider:
     reference: "<external protected recovery location>"
   gopass_adapter: optional-future-not-implemented
 
+agent_access:
+  accounts:
+    example-host:
+      hostname: agent-host.example.invalid
+      email: agent-host@example.invalid
+      role: user
+      access_all: false
+      collection: Agent Managed
+      permissions: read-write-no-manage
+      credential_file: "<protected local file reference>"
+      bootstrap_store: protected-local-file
+      invitation_state: confirmed
+      cli_server: https://vaultwarden.example.invalid
+      scope_test: passed
+
 publication:
   denylist_file: .publication-denylist
   scan_tracked_content_before_publish: true

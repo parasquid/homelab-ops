@@ -60,6 +60,27 @@ Vaultwarden, verify the running policy is `false:true` and health is good, then
 retry the owner invitation. The normal organization flow requires no Admin UI
 invite and no direct database write.
 
+## Agent-scoped access
+
+Use a separate account for each agent host. Invite it as an organization User
+with organization-wide access disabled and assign only the agent-managed
+collection with read/write access and no management permission. Keep personal
+vault data and operator-only collections outside this account's scope.
+
+The invited account completes signup through the invitation link first. The
+organization owner then confirms the accepted member and checks its collection
+assignment. Until that owner confirmation, the account can authenticate while
+the CLI still reports no organizations or collections.
+
+Keep the account bootstrap credential in a protected file outside the
+repository. Use a supported web client to establish the account, then configure
+the Bitwarden CLI with the private Vaultwarden URL. Pass the master password by
+protected file or another non-command-line mechanism. After syncing, test that
+the account can read and write a disposable item only in the intended
+collection and cannot manage collections or see personal-vault items. Preserve
+the bootstrap credential and all existing LUKS keys until another tested
+recovery path exists and the operator explicitly approves removal.
+
 ## Locked boot and recovery
 
 The OS disk boots Debian and Tailscale, but the encrypted mount deliberately

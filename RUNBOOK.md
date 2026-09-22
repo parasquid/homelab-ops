@@ -340,6 +340,37 @@ policy is `false:true` and the container is healthy, then retry the owner
 invitation. The normal organization flow needs no Admin UI invite and no
 direct database write.
 
+### Agent-scoped organization accounts
+
+Give each agent host its own Vaultwarden account so one host can be revoked
+without rotating every agent credential. Invite the account as an organization
+User, leave organization-wide access disabled, and assign read/write access to
+only the agent-managed collection. Do not grant Owner, Admin, collection
+management, or personal-vault access.
+
+Create the agent account through Vaultwarden's invitation link using a
+supported web client. A protected bootstrap file outside the repository may
+hold the account email and master password while the client establishes the
+account's encryption keys. Never log the invitation URL or place the master
+password in a command argument. Keep this bootstrap material until another
+tested unlock and recovery mechanism exists.
+
+The invitation has two distinct operator steps. The invited account first
+finishes signup and accepts the invitation. The organization owner must then
+confirm the accepted member and verify its collection assignment. Before that
+confirmation, a successful CLI login can still show zero organizations and
+zero collections; this is expected and is not evidence of a bad password.
+
+After owner confirmation, configure the Bitwarden CLI with the private
+Vaultwarden URL, log in using a protected password file or API-key flow, unlock
+without placing the master password on the command line, and sync. Verify that
+the account sees exactly the intended organization and collection, can create
+and read a disposable test item there, cannot manage the collection, and
+cannot see operator personal-vault items. Remove the test item after the check.
+Store infrastructure secrets only after this scope test passes. Existing LUKS
+keys and bootstrap credentials remain in their protected external locations
+until the operator explicitly approves their removal.
+
 Owner creation and the signup policy are an operator handoff after the stack is
 reachable over private HTTPS. The agent may verify the setup path and Mailpit
 capture, but must not invent owner credentials or silently choose an account
