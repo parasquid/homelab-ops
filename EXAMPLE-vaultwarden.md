@@ -64,8 +64,10 @@ invite and no direct database write.
 
 Use a separate account for each agent host. Invite it as an organization User
 with organization-wide access disabled and assign only the agent-managed
-collection with read/write access and no management permission. Keep personal
-vault data and operator-only collections outside this account's scope.
+collection. In the collection access dialog, enable `Edit items` and leave
+`Hide passwords` and `Manage` disabled. This gives read/write access with
+visible passwords while preventing collection management. Keep personal-vault
+data and operator-only collections outside this account's scope.
 
 The invited account completes signup through the invitation link first. The
 organization owner then confirms the accepted member and checks its collection

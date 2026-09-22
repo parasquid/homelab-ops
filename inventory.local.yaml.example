@@ -220,7 +220,10 @@ agent_access:
       role: user
       access_all: false
       collection: Agent Managed
-      permissions: read-write-no-manage
+      permissions: edit-items-visible-no-manage
+      collection_edit_items: true
+      collection_hide_passwords: false
+      collection_manage: false
       credential_file: "<protected local file reference>"
       bootstrap_store: protected-local-file
       invitation_state: confirmed

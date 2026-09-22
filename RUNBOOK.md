@@ -344,9 +344,11 @@ direct database write.
 
 Give each agent host its own Vaultwarden account so one host can be revoked
 without rotating every agent credential. Invite the account as an organization
-User, leave organization-wide access disabled, and assign read/write access to
-only the agent-managed collection. Do not grant Owner, Admin, collection
-management, or personal-vault access.
+User, leave organization-wide access disabled, and assign only the
+agent-managed collection. In the collection access dialog, enable `Edit items`
+and leave `Hide passwords` and `Manage` disabled. This gives the agent
+read/write access with visible passwords while preventing collection
+management. Do not grant Owner, Admin, or personal-vault access.
 
 Create the agent account through Vaultwarden's invitation link using a
 supported web client. A protected bootstrap file outside the repository may
