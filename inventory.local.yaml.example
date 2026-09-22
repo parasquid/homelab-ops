@@ -133,6 +133,16 @@ services:
         config_source: protected-environment-authoritative
         admin_ui_config_path: /data/config.json
         whitelist_overrides_signups_allowed: true
+        invitation_diagnosis:
+          nonexistent_account_error: User does not exist
+          diagnose_running_container_policy: true
+          fix_signups_allowed: false
+          fix_invitations_allowed: true
+          fix_apply_method: recreate-vaultwarden-only
+          verify_running_policy: false:true
+          verify_health: required
+          normal_flow_admin_ui_invite_required: false
+          normal_flow_direct_database_write_required: false
     mailpit:
       parent_service: vaultwarden
       ui_hostname: mail.vaultwarden.example.invalid

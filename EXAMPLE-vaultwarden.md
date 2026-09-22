@@ -52,6 +52,14 @@ so keep the protected environment authoritative unless deliberately changing
 that source. See the upstream [environment template](https://github.com/dani-garcia/vaultwarden/blob/main/.env.template)
 and [configuration implementation](https://github.com/dani-garcia/vaultwarden/blob/main/src/config.rs).
 
+If an organization invitation targets a nonexistent new account while
+`INVITATIONS_ALLOWED=false`, the backend can return `User does not exist`.
+Check the running container policy rather than only the source environment.
+Keep `SIGNUPS_ALLOWED=false`, set `INVITATIONS_ALLOWED=true`, recreate only
+Vaultwarden, verify the running policy is `false:true` and health is good, then
+retry the owner invitation. The normal organization flow requires no Admin UI
+invite and no direct database write.
+
 ## Locked boot and recovery
 
 The OS disk boots Debian and Tailscale, but the encrypted mount deliberately

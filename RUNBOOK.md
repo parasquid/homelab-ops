@@ -331,6 +331,15 @@ override environment values; keep the protected environment authoritative
 unless deliberately changing that source. The upstream implementation is in
 [`src/config.rs`](https://github.com/dani-garcia/vaultwarden/blob/main/src/config.rs).
 
+If an organization invitation targets a nonexistent new account while
+`INVITATIONS_ALLOWED=false`, Vaultwarden can return the exact error `User does
+not exist`. Diagnose this from the running container configuration, not only
+from the source environment file. Keep `SIGNUPS_ALLOWED=false`, set
+`INVITATIONS_ALLOWED=true`, recreate only Vaultwarden, verify the running
+policy is `false:true` and the container is healthy, then retry the owner
+invitation. The normal organization flow needs no Admin UI invite and no
+direct database write.
+
 Owner creation and the signup policy are an operator handoff after the stack is
 reachable over private HTTPS. The agent may verify the setup path and Mailpit
 capture, but must not invent owner credentials or silently choose an account
