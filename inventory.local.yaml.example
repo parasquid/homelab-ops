@@ -114,6 +114,25 @@ services:
       channel: stable
       internal_port: 80
       health_path: /alive
+      registration:
+        bootstrap:
+          signups_allowed: true
+          signups_verify: true
+          signups_domains_whitelist: ""
+        final:
+          signups_allowed: false
+          signups_verify: true
+          signups_domains_whitelist: ""
+        invitations_allowed: true
+        verify: real-verification-email-and-owner-login
+        backend_rejection_check: required
+        existing_owner_login_check: required
+        form_may_remain_visible_when_blocked: true
+        apply_method: recreate-vaultwarden-only
+        temporary_reopen_sequence: true-recreate-onboard-false-recreate
+        config_source: protected-environment-authoritative
+        admin_ui_config_path: /data/config.json
+        whitelist_overrides_signups_allowed: true
     mailpit:
       parent_service: vaultwarden
       ui_hostname: mail.vaultwarden.example.invalid
@@ -168,3 +187,6 @@ vaultwarden_credential_provider:
 publication:
   denylist_file: .publication-denylist
   scan_tracked_content_before_publish: true
+
+# Upstream semantics: https://github.com/dani-garcia/vaultwarden/blob/main/.env.template
+# and https://github.com/dani-garcia/vaultwarden/blob/main/src/config.rs

@@ -31,6 +31,27 @@ After the owner setup, send and accept a real Vaultwarden verification email
 through the private site. A message visible in Mailpit proves capture only; it
 does not exercise Vaultwarden's SMTP configuration or acceptance flow.
 
+## Registration lifecycle
+
+Bootstrap with `SIGNUPS_ALLOWED=true`, `SIGNUPS_VERIFY=true`, and an empty
+`SIGNUPS_DOMAINS_WHITELIST=` while keeping `INVITATIONS_ALLOWED=true`. Recreate
+only Vaultwarden, create the first owner through private HTTPS, accept the
+real verification email, and confirm that owner can log in.
+
+Then set `SIGNUPS_ALLOWED=false` with verification still enabled and the
+whitelist still empty. Recreate only Vaultwarden, confirm the running flag is
+false, verify that the backend rejects a new registration, and confirm the
+existing owner login. The registration form may remain visible while the
+backend rejects submissions.
+
+Prefer invitations while general signups are closed. A temporary reopening is
+`true -> recreate -> onboard -> false -> recreate`. A nonempty
+`SIGNUPS_DOMAINS_WHITELIST` overrides the false signup flag for matching
+domains. Admin UI values in `data/config.json` can override environment values,
+so keep the protected environment authoritative unless deliberately changing
+that source. See the upstream [environment template](https://github.com/dani-garcia/vaultwarden/blob/main/.env.template)
+and [configuration implementation](https://github.com/dani-garcia/vaultwarden/blob/main/src/config.rs).
+
 ## Locked boot and recovery
 
 The OS disk boots Debian and Tailscale, but the encrypted mount deliberately

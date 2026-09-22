@@ -305,6 +305,32 @@ Vaultwarden follows the private VM pattern with one additional internal service:
   not disaster recovery. Record their retention and the absence of an
   external backup until a separate off-host backup has been tested.
 
+### Registration lifecycle
+
+Use this one-time bootstrap sequence with the protected environment as the
+authoritative source. It follows the upstream [`SIGNUPS_*` and
+`INVITATIONS_ALLOWED` settings](https://github.com/dani-garcia/vaultwarden/blob/main/.env.template):
+
+1. Set `SIGNUPS_ALLOWED=true`, `SIGNUPS_VERIFY=true`, and an empty
+   `SIGNUPS_DOMAINS_WHITELIST=`. Keep `INVITATIONS_ALLOWED=true`.
+2. Recreate only Vaultwarden to apply the environment. Create the first owner
+   through the private URL, accept the real verification email, and confirm
+   the existing owner can log in. Raw Mailpit capture alone is insufficient.
+3. Set `SIGNUPS_ALLOWED=false` while keeping `SIGNUPS_VERIFY=true` and the
+   whitelist empty. Recreate only Vaultwarden again.
+4. Confirm the running configuration flag is false, a new registration is
+   rejected by the backend, and the existing owner can still log in. The
+   registration form may remain visible even when the backend blocks it.
+
+For routine onboarding, prefer invitations with `INVITATIONS_ALLOWED=true`:
+invited users remain possible while general signups are closed. A temporary
+reopening is exactly `true -> recreate -> onboard -> false -> recreate`.
+A nonempty `SIGNUPS_DOMAINS_WHITELIST` overrides `SIGNUPS_ALLOWED=false` for
+matching domains. Values saved by the Admin UI in `data/config.json` can also
+override environment values; keep the protected environment authoritative
+unless deliberately changing that source. The upstream implementation is in
+[`src/config.rs`](https://github.com/dani-garcia/vaultwarden/blob/main/src/config.rs).
+
 Owner creation and the signup policy are an operator handoff after the stack is
 reachable over private HTTPS. The agent may verify the setup path and Mailpit
 capture, but must not invent owner credentials or silently choose an account
