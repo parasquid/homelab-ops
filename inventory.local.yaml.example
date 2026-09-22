@@ -43,6 +43,15 @@ service_schema:
     method: none
     unlock: none
     key_reference: "<external protected reference or null>"
+    agent_key_delivery:
+      provider: "<vaultwarden or null>"
+      collection: "<agent-managed collection or null>"
+      item: "<exact vault item name or null>"
+      encoding: "<base64 or null>"
+      expected_decoded_bytes: null
+      local_recovery_copy: retained-until-explicit-approval
+      round_trip_test: pending
+      luks_header_test: pending
     recovery_passphrase: "<external protected reference or null>"
     header_backup: false
     unattended_boot: true
@@ -80,6 +89,15 @@ services:
       method: none
       unlock: none
       key_reference: "<external protected reference or null>"
+      agent_key_delivery:
+        provider: "<vaultwarden or null>"
+        collection: "<agent-managed collection or null>"
+        item: "<exact vault item name or null>"
+        encoding: "<base64 or null>"
+        expected_decoded_bytes: null
+        local_recovery_copy: retained-until-explicit-approval
+        round_trip_test: pending
+        luks_header_test: pending
       recovery_passphrase: "<external protected reference or null>"
       header_backup: false
       unattended_boot: true

@@ -371,6 +371,22 @@ Store infrastructure secrets only after this scope test passes. Existing LUKS
 keys and bootstrap credentials remain in their protected external locations
 until the operator explicitly approves their removal.
 
+For an eligible service data disk, store the automation key as a login-item
+password in the agent-managed collection. Binary key files must be encoded,
+for example with base64, and the item must record the encoding and expected
+decoded byte length. The unlock helper must select one exact item from one
+exact collection, decode it only in memory, and pass the bytes to `cryptsetup`
+over standard input. It must never write the retrieved key to disk or include
+it in a command argument. Before relying on the item, compare a retrieval with
+the source key in memory and run `cryptsetup open --test-passphrase` against
+the intended LUKS header. Keep the protected local key until the operator
+explicitly approves its removal after a real locked-boot recovery test.
+
+Do not make Vaultwarden dependent on a key held only inside itself. Its own
+automation key, recovery passphrase, and header backup require an external
+bootstrap and recovery location even when a convenience copy exists in the
+vault. Keep human recovery material and agent automation material separate.
+
 Owner creation and the signup policy are an operator handoff after the stack is
 reachable over private HTTPS. The agent may verify the setup path and Mailpit
 capture, but must not invent owner credentials or silently choose an account

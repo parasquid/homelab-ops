@@ -81,6 +81,19 @@ collection and cannot manage collections or see personal-vault items. Preserve
 the bootstrap credential and all existing LUKS keys until another tested
 recovery path exists and the operator explicitly approves removal.
 
+Eligible service automation keys can then move into the agent-managed
+collection. Encode binary key files as base64 in a login-item password and
+record the expected decoded size. A local unlock helper selects one exact item
+from one exact collection, decodes it in memory, and sends the key to
+`cryptsetup` only over standard input. Verify the stored value with an in-memory
+round trip and `cryptsetup open --test-passphrase` before depending on it.
+Retain the protected source key until a real locked-boot recovery succeeds and
+the operator explicitly approves removal.
+
+Vaultwarden's own key cannot exist only inside Vaultwarden because the vault is
+unavailable while its encrypted disk is locked. Keep that bootstrap key and
+the authoritative recovery material externally.
+
 ## Locked boot and recovery
 
 The OS disk boots Debian and Tailscale, but the encrypted mount deliberately
