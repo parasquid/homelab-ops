@@ -384,6 +384,20 @@ the source key in memory and run `cryptsetup open --test-passphrase` against
 the intended LUKS header. Keep the protected local key until the operator
 explicitly approves its removal after a real locked-boot recovery test.
 
+Use the tracked `scripts/unlock-from-vaultwarden.sh` implementation with a
+local copy of `unlock-from-vaultwarden.conf.example`. Keep that populated file
+ignored and mode `0600`. The script sources it as trusted Bash, so only the
+operator may own or modify it. Put deployment identifiers, item references,
+the credential-file path, and the optional remote post-unlock command in that
+file. Keep the master password, vault session, API tokens, and LUKS bytes out
+of it. Test the configured path with:
+
+```bash
+./scripts/unlock-from-vaultwarden.sh \
+  --config private/example-service-vaultwarden-unlock.conf \
+  --test
+```
+
 Do not make Vaultwarden dependent on a key held only inside itself. Its own
 automation key, recovery passphrase, and header backup require an external
 bootstrap and recovery location even when a convenience copy exists in the

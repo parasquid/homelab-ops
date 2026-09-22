@@ -73,6 +73,14 @@ The check rejects tracked local/private paths, scans every tracked file for the
 ignored exact-value denylist, and checks common secret patterns. It does not
 embed live identifiers in the repository.
 
+The repository includes the generic
+[`scripts/unlock-from-vaultwarden.sh`](scripts/unlock-from-vaultwarden.sh)
+helper and [`unlock-from-vaultwarden.conf.example`](unlock-from-vaultwarden.conf.example).
+Copy the configuration template to an ignored location, fill in the local
+references, and set it to mode `0600`. The configuration is sourced as trusted
+Bash; it must be operator-controlled and contain secret references rather than
+secret values.
+
 ## Security
 
 Do not commit `.env`, API tokens, passwords, Tailscale authentication keys,

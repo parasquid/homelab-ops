@@ -45,6 +45,8 @@ service_schema:
     key_reference: "<external protected reference or null>"
     agent_key_delivery:
       provider: "<vaultwarden or null>"
+      helper: scripts/unlock-from-vaultwarden.sh
+      config: "<ignored mode-0600 config reference or null>"
       collection: "<agent-managed collection or null>"
       item: "<exact vault item name or null>"
       encoding: "<base64 or null>"
@@ -91,6 +93,8 @@ services:
       key_reference: "<external protected reference or null>"
       agent_key_delivery:
         provider: "<vaultwarden or null>"
+        helper: scripts/unlock-from-vaultwarden.sh
+        config: "<ignored mode-0600 config reference or null>"
         collection: "<agent-managed collection or null>"
         item: "<exact vault item name or null>"
         encoding: "<base64 or null>"

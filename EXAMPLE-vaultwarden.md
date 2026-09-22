@@ -92,6 +92,12 @@ round trip and `cryptsetup open --test-passphrase` before depending on it.
 Retain the protected source key until a real locked-boot recovery succeeds and
 the operator explicitly approves removal.
 
+The tracked `scripts/unlock-from-vaultwarden.sh` contains this reusable logic.
+Copy `unlock-from-vaultwarden.conf.example` to an ignored mode-`0600` file and
+set the deployment-specific references there. The script sources that trusted
+Bash configuration; the populated copy contains identifiers and paths but no
+master password, session, API token, or LUKS bytes.
+
 Vaultwarden's own key cannot exist only inside Vaultwarden because the vault is
 unavailable while its encrypted disk is locked. Keep that bootstrap key and
 the authoritative recovery material externally.

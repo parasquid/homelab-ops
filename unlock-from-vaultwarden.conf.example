@@ -1,0 +1,24 @@
+# shellcheck shell=bash disable=SC2034
+# Copy this file to an ignored, operator-controlled location and set mode 0600.
+# The unlock script sources it as trusted Bash. Store references here, never a
+# master password, API token, Vaultwarden session, or LUKS key.
+
+BW_BIN=/usr/local/bin/bw
+BW_CREDENTIAL_FILE=/secure/operator/vaultwarden-agent.credential
+VAULTWARDEN_URL=https://vaultwarden.example.invalid
+VAULTWARDEN_COLLECTION='Agent Managed'
+VAULTWARDEN_ITEM=homelab/luks/example-service-automation
+
+SECRET_ENCODING=base64
+EXPECTED_DECODED_BYTES=64
+
+VM_HOST=example-service.example.invalid
+VM_USER=operator
+LUKS_DEVICE=/dev/disk/by-id/scsi-example-service-data
+LUKS_MAPPER=example-service-data
+DATA_MOUNT=/srv/example-service-data
+SSH_CONNECT_TIMEOUT=12
+
+# This trusted command runs remotely after the mapper is mounted. Leave it
+# empty when another mechanism starts the application.
+REMOTE_POST_UNLOCK_COMMAND=$'sudo systemctl start docker\ncd /opt/example-service\nsudo docker compose up -d --remove-orphans --wait --wait-timeout 180\ncurl -fsS http://127.0.0.1:8080/health >/dev/null'
