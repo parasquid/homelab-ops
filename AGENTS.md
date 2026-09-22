@@ -11,15 +11,15 @@ Reserved example values, placeholders, and generic service names are allowed
 when they are clearly presented as examples.
 
 Before any task, read this file and then read `AGENTS.local.md` and
-`inventory.local.yaml` when those ignored files are present. Read `RUNBOOK.md`
-and the selected service profile before infrastructure work. The local files
-hold deployment-specific facts and operator handoff; do not copy their live
-values into tracked files.
+`inventory.local.yaml` when those ignored files are present. Read `RUNBOOK.md`,
+the selected service profile, and the matching page under `docs/services/`
+before infrastructure work. The local files hold deployment-specific facts and
+operator handoff; do not copy their live values into tracked files.
 
 Keep the two layers consistent: infrastructure work is incomplete until the
 deployment-specific changes update `inventory.local.yaml` and the ignored
-handoff. Reusable procedure or pattern changes update the tracked runbook and
-the relevant `.example` files. Access, encryption, backup, update, and
+handoff. Reusable procedure or pattern changes update the tracked runbook,
+templates, and relevant service note. Access, encryption, backup, update, and
 credential-provider changes update both layers. Before final reporting,
 validate the relevant Markdown, YAML, and shell files and run the publication
 safety check. Update suitable `updated_at` or `last_verified_at` fields, but
@@ -37,7 +37,8 @@ do not store transient health output or secrets in either documentation layer.
 
 ## Before changing anything
 
-- Read `RUNBOOK.md`, the selected service profile, and the relevant example.
+- Read `RUNBOOK.md`, the selected service profile, and the relevant service
+  note under `docs/services/`.
 - Inspect capacity, storage, existing VM IDs, DNS records, and current network
   listeners before choosing values.
 - Confirm that the target VM ID, hostname, DNS record, storage volume, and

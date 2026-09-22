@@ -1,0 +1,9 @@
+# Copy this file to an ignored, mode-0600 path and replace every placeholder.
+# It contains references only. Never put a password, token, or session value in it.
+BW_BIN=/absolute/path/to/bw
+BW_CREDENTIAL_FILE=/absolute/path/to/protected-agent.credential
+VAULTWARDEN_URL=https://vault.example.invalid
+VAULTWARDEN_COLLECTION='Agent Managed'
+VAULTWARDEN_ITEM='homelab/example-service/mcp'
+HEADER_NAME=Authorization
+HEADER_SCHEME=Bearer

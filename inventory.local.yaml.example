@@ -36,6 +36,15 @@ service_schema:
     channel: stable
     internal_port: 8080
     health_path: /health
+    mcp:
+      enabled: false
+      managed_by_env: false
+      endpoint: "<private MCP URL or null>"
+      auth: "<oauth, vaultwarden-api-key, or null>"
+      token_item: "<exact vault item name or null>"
+      header_helper: scripts/vaultwarden-http-headers.sh
+      header_helper_config: "<ignored mode-0600 config reference or null>"
+      write_approval: required
   storage:
     mount: /srv/example-service-data
     persistent_paths: []
@@ -84,6 +93,15 @@ services:
       channel: stable
       internal_port: 8080
       health_path: /health
+      mcp:
+        enabled: false
+        managed_by_env: false
+        endpoint: "<private MCP URL or null>"
+        auth: "<oauth, vaultwarden-api-key, or null>"
+        token_item: "<exact vault item name or null>"
+        header_helper: scripts/vaultwarden-http-headers.sh
+        header_helper_config: "<ignored mode-0600 config reference or null>"
+        write_approval: required
     storage:
       mount: /srv/example-service-data
       persistent_paths: []
@@ -211,6 +229,9 @@ vaultwarden_credential_provider:
       smtp_capture: "<protected local file reference>"
       cloudflare_api_token: "<external file reference>"
   primary_store_after_bootstrap: vaultwarden
+  helpers:
+    luks_unlock: scripts/unlock-from-vaultwarden.sh
+    dynamic_http_headers: scripts/vaultwarden-http-headers.sh
   authoritative_luks_recovery:
     location: outside-vaultwarden
     reference: "<external protected recovery location>"

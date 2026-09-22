@@ -3,6 +3,8 @@
 This runbook describes the default path for deploying one private service in a
 dedicated Proxmox VM. The service profile is authoritative for sizing and
 exceptions. Values from the local `.env` supply site-specific configuration.
+The matching page under `docs/services/` records why the service uses its
+particular shape and the consequences and gotchas that future operators need.
 
 ## 1. Establish the desired state
 
@@ -398,6 +400,17 @@ of it. Test the configured path with:
   --test
 ```
 
+For an HTTP client that supports a dynamic header command, store its bearer
+token as the password of one exact login item in the agent-managed collection.
+Use `scripts/vaultwarden-http-headers.sh` with an ignored mode-`0600` copy of
+`vaultwarden-http-headers.conf.example`. The client configuration contains the
+private endpoint and helper command, while the helper unlocks the scoped CLI
+account, retrieves the exact item, and emits the required header JSON at
+connection time. That JSON contains the live token: pipe it directly to the
+client or a structural validator and never print or log it. Prefer a token tied
+to the least-privileged application user that can do the required work, and
+configure the client to prompt for write-capable tools.
+
 Do not make Vaultwarden dependent on a key held only inside itself. Its own
 automation key, recovery passphrase, and header backup require an external
 bootstrap and recovery location even when a convenience copy exists in the
@@ -429,6 +442,11 @@ Produce a sanitized deployment record containing:
   header-backup location without including any key material.
 - Routine start, stop, logs, update, reboot, and recovery commands.
 - All deviations from this runbook and all deferred work.
+
+Update the matching tracked service note whenever a deployment establishes a
+reusable decision, consequence, failure mode, or acceptance check. Keep exact
+deployment facts in the ignored inventory and handoff so the public note does
+not become an infrastructure map.
 
 Before an application update, create the configured backup or snapshot. After a
 successful update, repeat health, exposure, and persistence checks. When

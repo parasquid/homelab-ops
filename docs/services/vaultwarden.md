@@ -1,7 +1,27 @@
-# Example: Vaultwarden
+# Vaultwarden service notes
 
 This is a sanitized, canonicalized example. It describes a reusable private
 password-manager pattern rather than a live deployment.
+
+## Decisions and consequences
+
+- Use a dedicated VM because the password manager is a dependency for other
+  service recovery paths. Its lifecycle and failure domain should remain
+  independent of the applications whose credentials it stores.
+- Keep Vaultwarden private behind Caddy on Tailscale with DNS-only Cloudflare
+  records. Email capture and account recovery stay available to tailnet devices
+  without adding public ingress.
+- Run Mailpit in the same Compose project because it provides a simple private
+  verification path without an external SMTP provider. It is capture-only:
+  messages do not leave the VM and the UI needs separate HTTPS authentication.
+- Close anonymous registration after the owner is verified, while leaving
+  invitations enabled for controlled onboarding.
+- Give every agent host its own organization User and only the agent-managed
+  collection. This creates a revocation boundary per host and keeps operator
+  personal items outside agent access.
+- Keep Vaultwarden's own LUKS key outside Vaultwarden. A vault cannot supply the
+  key needed to start itself, so the bootstrap and authoritative recovery path
+  must remain external.
 
 ## Profile characteristics
 

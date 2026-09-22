@@ -1,7 +1,20 @@
-# Example: Suwayomi
+# Suwayomi service notes
 
 This is a sanitized, canonicalized example. It captures useful behavior from an
 existing deployment while applying the runbook's current security defaults.
+
+## Decisions and consequences
+
+- Use a dedicated VM so media storage, download activity, and a deliberately
+  faster release channel do not affect unrelated services.
+- Keep the application private behind the same Tailscale, DNS-only Cloudflare,
+  and Caddy pattern as other web services.
+- Treat large media separately from configuration and database state. Media
+  that can be downloaded again may use a different backup policy from the
+  metadata needed to reconstruct the service.
+- Follow the preview channel only as an explicit service exception. Health
+  checks and retained previous images are required because preview updates have
+  a higher regression risk than the default stable channel.
 
 ## Profile characteristics
 
