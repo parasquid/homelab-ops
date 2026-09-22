@@ -276,12 +276,18 @@ the data disk, and Docker, Caddy, and the application then return healthy.
 Vaultwarden follows the private VM pattern with one additional internal service:
 
 - Run Vaultwarden and Mailpit in Docker Compose on the encrypted data mount.
-  Mailpit captures Vaultwarden's SMTP during bootstrap and routine testing. Its
-  SMTP listener stays on the Compose network; expose its UI through the same
-  private HTTPS path only when an operator needs it.
+  Use the hostname convention `<component>.<service>.<base-domain>`: the
+  Vaultwarden site is `vaultwarden.example.invalid` and the auxiliary Mailpit
+  UI is `mail.vaultwarden.example.invalid`. Mailpit captures Vaultwarden's
+  SMTP during bootstrap and routine testing.
+- The Mailpit web UI is protected by Caddy basic auth. Its SMTP listener is a
+  Compose-internal service with no SMTP authentication. Vaultwarden must omit
+  its SMTP username and password rather than reuse the Mailpit UI credential;
+  a mismatch can produce `No compatible authentication mechanism was found`.
+  The SMTP listener stays on the Compose network and is never published.
 - Keep the application and Mailpit off LAN and public interfaces. Caddy binds
   to the VM's Tailscale address. Cloudflare records for the application and
-  optional Mailpit UI are DNS-only and resolve to that Tailscale address;
+  auxiliary UI are DNS-only and resolve to that Tailscale address;
   Cloudflare proxying, Funnel, router forwarding, and public ingress remain
   disabled.
 - Put Docker state, Compose files, Vaultwarden data, Mailpit data, and
@@ -307,7 +313,9 @@ the owner completes setup, Vaultwarden is the primary agent-managed credential
 store. Its authoritative LUKS recovery material must remain outside Vaultwarden
 because it is required before Vaultwarden is available. A local-file bootstrap
 is the supported path; a gopass adapter is an optional future integration and
-is not implemented.
+is not implemented. A raw Mailpit capture alone does not exercise Vaultwarden's
+SMTP configuration; perform a real Vaultwarden verification-email acceptance
+test after owner setup and record its result in the private handoff.
 
 ## 12. Handoff and lifecycle
 

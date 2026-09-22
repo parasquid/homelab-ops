@@ -15,6 +15,22 @@ password-manager pattern rather than a live deployment.
 - Docker state, application data, Mailpit data, Compose configuration, and
   protected environment files live on a separate guest LUKS data disk.
 
+## Hostnames and SMTP verification
+
+Use `<component>.<service>.<base-domain>` for auxiliary private endpoints. A
+sanitized deployment therefore uses `vaultwarden.example.invalid` for the
+service and `mail.vaultwarden.example.invalid` for the Mailpit UI.
+
+Caddy protects the Mailpit web UI with basic auth. Mailpit's SMTP listener is a
+Compose-internal service with `smtp_auth: none`; it has no SMTP username or
+password. Vaultwarden must omit its SMTP username and password and must never
+reuse the UI credential. The recognizable failure for an incorrect auth setup
+is `No compatible authentication mechanism was found`.
+
+After the owner setup, send and accept a real Vaultwarden verification email
+through the private site. A message visible in Mailpit proves capture only; it
+does not exercise Vaultwarden's SMTP configuration or acceptance flow.
+
 ## Locked boot and recovery
 
 The OS disk boots Debian and Tailscale, but the encrypted mount deliberately

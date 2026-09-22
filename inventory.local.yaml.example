@@ -104,6 +104,10 @@ services:
       cloudflare_proxy: false
       public_ingress: false
       smtp: compose-network-only
+    urls:
+      app: https://vaultwarden.example.invalid
+      mailpit_ui: https://mail.vaultwarden.example.invalid
+      mailpit_parent: vaultwarden.example.invalid
     application:
       compose_directory: /srv/vaultwarden-data/app
       image: vaultwarden/server
@@ -111,8 +115,12 @@ services:
       internal_port: 80
       health_path: /alive
     mailpit:
+      parent_service: vaultwarden
+      ui_hostname: mail.vaultwarden.example.invalid
       smtp_capture: internal-compose-service
+      smtp_auth: none
       ui_private_https: true
+      ui_auth: caddy-basic
     storage:
       mount: /srv/vaultwarden-data
       persistent_paths:
