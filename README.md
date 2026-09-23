@@ -57,6 +57,8 @@ of scope until a real deployment needs them.
   following a rolling preview channel with daily container updates.
 - [Vaultwarden](docs/services/vaultwarden.md) shows a private password
   manager with internal Mailpit capture, guest LUKS, and a locked-boot handoff.
+- [Codex Remote Control](docs/codex-remote-control.md) documents a reusable
+  immutable-Linux and per-user systemd setup for the standalone Codex CLI.
 
 The notes are sanitized and canonicalized. They document both the chosen shape
 and its rationale, not the exact configuration or inventory of any live system.
