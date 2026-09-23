@@ -95,6 +95,13 @@ RestartSec=15
 WantedBy=default.target
 ```
 
+This `oneshot` unit records whether the start command succeeded. With
+`RemainAfterExit=yes`, systemd can report it as active after that command exits;
+`Restart=on-failure` does not supervise the separate app-server daemon. Check
+that the control socket accepts a connection before treating the daemon as
+available. A working local socket still does not prove that a remote client is
+paired.
+
 Use an absolute user-owned executable path. Do not rely on a shell, `~`, or a
 mutable interactive `PATH` in `ExecStart`. If the release's official installer
 uses another path, substitute that path and document the resolver locally.
@@ -118,18 +125,31 @@ Check the unit, user manager, executable resolver, and local control state:
 ```bash
 systemctl --user is-enabled codex-remote-control.service
 systemctl --user is-active codex-remote-control.service
-systemctl --user status codex-remote-control.service --no-pager
+systemctl --user show codex-remote-control.service \
+  -p ActiveState -p Type -p RemainAfterExit -p MainPID -p ExecMainStatus
 loginctl show-user "$USER" -p Linger
 readlink -f "$(command -v codex)"
 test -S "$HOME/.codex/app-server-control/app-server-control.sock"
 stat -c '%A %n' "$HOME/.codex/app-server-control" \
   "$HOME/.codex/app-server-control/app-server-control.sock"
+python3 - <<'PY'
+from pathlib import Path
+import socket
+
+path = Path.home() / '.codex/app-server-control/app-server-control.sock'
+with socket.socket(socket.AF_UNIX) as connection:
+    connection.settimeout(1)
+    connection.connect(str(path))
+print('Control socket accepts connections')
+PY
 ```
 
-Inspect service metadata and narrowly scoped user-journal entries when needed;
-redact or avoid any line that could contain a token, pairing code, prompt,
-request, or path-derived secret. Do not treat a running unit as proof that a
-remote client is paired or that a host-wide firewall permits or denies a path.
+The socket check sends no application data and fails if the daemon is not
+accepting local connections. Inspect narrowly scoped user-journal entries only
+when needed; redact or avoid any line that could contain a token, pairing code,
+prompt, request, or path-derived secret. Do not treat a running unit as proof
+that a remote client is paired or that a host-wide firewall permits or denies
+a path.
 Listener and firewall checks must be performed in the appropriate host
 namespace with separate authorization.
 
@@ -146,13 +166,17 @@ systemctl --user stop codex-remote-control.service
 systemctl --user daemon-reload
 systemctl --user start codex-remote-control.service
 codex --version
-systemctl --user status codex-remote-control.service --no-pager
+systemctl --user show codex-remote-control.service \
+  -p ActiveState -p ExecMainStatus
 ```
 
-If a unit fails, inspect its exit status and a small, redacted journal slice;
-do not read or copy logs into a ticket. Confirm the executable still exists,
-the user manager is running, and linger remains enabled. After correcting the
-unit or release path, use `daemon-reload`, `reset-failed`, and a controlled
+If the unit is active but the socket check fails, checkpoint any active task,
+then restart the user unit and repeat the socket check. Restarting disconnects
+remote-control tasks. If the unit fails, inspect its exit status and a small,
+redacted journal slice; do not read or copy logs into a ticket. Confirm the
+executable still exists, the user manager is running, and linger remains
+enabled. After correcting the unit or release path, use `daemon-reload`,
+`reset-failed`, and a controlled
 start. Preserve the old release until the new one passes its checks. Do not
 delete a socket, lock, package, or log based only on its name; stop the service,
 verify the owning user and the absence of a running process, then remove only a
@@ -173,8 +197,9 @@ and the intended remote connection after the reboot.
 - Linger keeps the user manager available; it is not an authentication method.
 - Verify listeners and firewall policy separately. SSH, Tailscale, a reverse
   proxy, a tunnel, and public ingress are not implied by this setup.
-- Keep the unit's restart behavior bounded by the timeouts above and investigate
-  repeated failures rather than looping through unverified upgrades.
+- The unit retries failed start commands within the timeouts above; it does not
+  restart a daemon that dies after a successful start. Investigate repeated
+  failures rather than looping through unverified upgrades.
 
 ## Troubleshooting checklist
 

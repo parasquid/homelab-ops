@@ -59,6 +59,11 @@ do not store transient health output or secrets in either documentation layer.
   secret mechanism. Avoid placing them in command arguments or shell history.
 - Protect local secret-bearing files with mode `0600` and their directories
   with mode `0700` where practical.
+- Honor any standing credential-use authorization recorded in the ignored
+  `AGENTS.local.md` for operator-requested work. Do not ask again solely to
+  retrieve or use an authorized agent credential. Check the intended service
+  and destination before transmitting it; a standing grant does not authorize
+  unrelated destinations or destructive operations.
 - Store LUKS automation keys outside the repository. Put only the external key
   directory or key reference in `.env`; do not store a raw LUKS key there.
 - Pass LUKS key material through standard input. Never put it in cloud-init,
@@ -70,7 +75,8 @@ do not store transient health output or secrets in either documentation layer.
   published checksum before importing them.
 - Enable VM autostart and the QEMU Guest Agent.
 - Create `VM_ADMIN_USER` with a locked password and passwordless sudo through
-  cloud-init. Authenticate with Tailscale SSH or an approved SSH key.
+  cloud-init. Authenticate to OpenSSH with an approved key over the tailnet;
+  leave Tailscale SSH disabled unless the operator explicitly requests it.
 - Place application configuration under `/opt/<service>`.
 - Bind private application ports to loopback. Keep databases and internal
   brokers on Compose-only networks.

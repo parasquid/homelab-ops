@@ -45,7 +45,7 @@ but secret values must never be printed in logs, chat, or deployment records.
 ## Repository scope
 
 Version 1 covers full virtual machines, Debian cloud images, Docker Compose,
-Tailscale SSH, Caddy, and Cloudflare DNS validation. LXC, public ingress,
+OpenSSH over Tailscale, Caddy, and Cloudflare DNS validation. LXC, public ingress,
 clustered applications, and full infrastructure-as-code are intentionally out
 of scope until a real deployment needs them.
 
@@ -89,6 +89,10 @@ and [`vaultwarden-http-headers.conf.example`](vaultwarden-http-headers.conf.exam
 This keeps a bearer token in the scoped Vaultwarden collection while the client
 configuration stores only the helper command and protected configuration path.
 The helper's JSON output contains the live token and must never be logged.
+For clients that need a faster header command, the runbook describes the
+optional cached helper and its fast fallback. Their protected configuration
+needs the exact collection name and the exact collection and item IDs; see
+[`vaultwarden-http-headers-fast.conf.example`](vaultwarden-http-headers-fast.conf.example).
 
 ## Security
 

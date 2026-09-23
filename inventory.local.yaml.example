@@ -8,10 +8,17 @@ site:
   name: example-homelab
   timezone: Etc/UTC
   base_domain: example.invalid
+  agent_ssh:
+    public_key_path: /home/operator/.ssh/id_ed25519.pub
+    public_key_fingerprint: "SHA256:<approved public key fingerprint>"
+    private_key_source: local-ssh-agent
   proxmox:
     host: example-node
     node: example-node
     admin_user: operator
+    ssh_transport: openssh-over-tailnet
+    tailscale_ssh_enabled: false
+    agent_key_auth: pending
   network:
     bridge: vmbr0
     vm_storage: VM_STORAGE
@@ -25,6 +32,14 @@ service_schema:
   vm_id: next-free
   hostname: example-service
   admin_user: operator
+  tailscale:
+    hostname: example-service
+    ssh_enabled: false
+  ssh:
+    transport: openssh-over-tailnet
+    via_hostname: pending
+    agent_key_auth: pending
+    host_key_verified_via: pending
   network:
     exposure: tailscale-private
     caddy_bind: tailscale-ipv4

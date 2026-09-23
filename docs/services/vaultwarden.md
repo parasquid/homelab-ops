@@ -11,6 +11,8 @@ password-manager pattern rather than a live deployment.
 - Keep Vaultwarden private behind Caddy on Tailscale with DNS-only Cloudflare
   records. Email capture and account recovery stay available to tailnet devices
   without adding public ingress.
+- Use an approved administrator key with OpenSSH over the tailnet for maintenance
+  and remote unlock. Keep Tailscale SSH disabled.
 - Run Mailpit in the same Compose project because it provides a simple private
   verification path without an external SMTP provider. It is capture-only:
   messages do not leave the VM and the UI needs separate HTTPS authentication.
@@ -121,6 +123,28 @@ master password, session, API token, or LUKS bytes.
 Vaultwarden's own key cannot exist only inside Vaultwarden because the vault is
 unavailable while its encrypted disk is locked. Keep that bootstrap key and
 the authoritative recovery material externally.
+
+## Future scoped local credential cache
+
+The n8n MCP header cache demonstrates a narrow, owner-only in-memory cache.
+Extending it to other agent credentials is a documented design only; it is
+not a general credential service today. An extension should use protected
+service aliases mapped to exact item and collection IDs, expected names,
+response formats, and intended destinations. Refresh each item only after
+checking the configured server, agent account, item identity, and collection
+membership. Clients must not supply arbitrary item IDs, searches, or CLI
+commands.
+
+Use a separate Unix socket or service instance for each trust scope, with
+an owner-only socket directory, mode-`0600` socket, and peer-UID checks.
+Processes under the same UID share that access, so use distinct OS users
+where client boundaries must differ. Keep selected values in memory only;
+never persist decrypted values or session keys, expose a TCP listener, or
+offer the unrestricted Bitwarden CLI `serve` interface. Refresh in the
+background, invalidate on rotation or failed identity checks, and preserve
+an independent bootstrap path while Vaultwarden is locked. Record the live
+allowlist and recovery behavior in ignored inventory and handoff files before
+deploying an extension.
 
 ## Locked boot and recovery
 

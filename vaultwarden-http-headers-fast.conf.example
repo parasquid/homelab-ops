@@ -1,0 +1,15 @@
+# Copy to an ignored, mode-0600 path. This file contains references only.
+# The fast helper uses the exact collection and item IDs to meet Codex's
+# 10-second HTTP-header-helper limit. Verify both IDs against the intended
+# Vaultwarden collection and item before populating the protected copy.
+# The collection name is also required when the cache refreshes through the
+# syncing helper; both helpers may use the same protected copy.
+BW_BIN=/absolute/path/to/bw
+BW_CREDENTIAL_FILE=/absolute/path/to/protected-agent.credential
+VAULTWARDEN_URL=https://vault.example.invalid
+VAULTWARDEN_COLLECTION='Example Collection'
+VAULTWARDEN_COLLECTION_ID=00000000-0000-0000-0000-000000000000
+VAULTWARDEN_ITEM='homelab/example-service/mcp'
+VAULTWARDEN_ITEM_ID=00000000-0000-0000-0000-000000000000
+HEADER_NAME=Authorization
+HEADER_SCHEME=Bearer

@@ -15,14 +15,17 @@ not a literal export of a live deployment.
   DNS-only and resolves to a Tailscale address, so the service remains reachable
   only from the tailnet. This keeps certificate management independent of
   Tailscale Serve and creates no public webhook endpoint.
+- Use the VM administrator's approved key with OpenSSH over the tailnet for
+  maintenance and remote unlock. Keep Tailscale SSH disabled so routine agent
+  access does not depend on interactive Tailscale SSH checks.
 - Put state and secrets on a separate guest LUKS disk. Debian and Tailscale can
   boot for recovery, while Docker and the application wait for a deliberate
   remote unlock. This protects a copied data disk but leaves the running VM and
   its OS bootstrap within the Proxmox and Tailscale trust boundaries.
 - Track the stable application channel with automatic daily updates, while
   keeping PostgreSQL within one selected major version. This reduces routine
-  maintenance, but database migrations still require a manual backup or
-  snapshot first.
+  maintenance. Database migrations may run during updates; follow the profile's
+  backup policy and record when no rollback point exists.
 - Keep reusable credentials in the agent-managed Vaultwarden collection after
   bootstrap. Protected local copies remain until the operator explicitly
   approves their removal after the corresponding recovery path has passed.
@@ -45,9 +48,9 @@ design is added.
 - The editor and webhook base URLs use the external HTTPS hostname.
 - Execution history is pruned according to the service profile.
 
-Use n8n's current `N8N_WEBHOOK_URL` environment variable for the public-facing
-webhook base URL. Keep the editor URL and protocol settings aligned with the
-same private HTTPS hostname.
+Use n8n's current `N8N_WEBHOOK_URL` environment variable for the HTTPS webhook
+base URL presented to tailnet clients. Keep the editor URL and protocol
+settings aligned with the same private HTTPS hostname.
 
 ## Encryption pattern
 
@@ -96,18 +99,89 @@ client must operate.
 An n8n MCP API key is tied to the n8n user that created it. Store it as a login
 item password in the agent-managed Vaultwarden collection. Configure Codex with
 the private `/mcp-server/http` URL and the tracked
-`scripts/vaultwarden-http-headers.sh` helper, using an ignored mode-`0600`
-configuration copied from `vaultwarden-http-headers.conf.example`. The Codex
-configuration then contains only the endpoint and helper command; the helper
+`scripts/vaultwarden-http-headers-cached.py` helper, using an ignored mode-`0600`
+configuration copied from `vaultwarden-http-headers-fast.conf.example`. Fill in
+both the exact collection name used by the cache's syncing helper and the exact
+collection and item IDs used by the fast fallback. The Codex configuration
+then contains only the endpoint and helper command; the helper
 retrieves the token at connection time using Codex's documented
 [`http_headers_helper`](https://learn.chatgpt.com/docs/extend/mcp) support. Set
 the MCP client to prompt for tools that can write.
+
+Codex limits HTTP header helpers to 10 seconds. Use the fast helper with
+the protected configuration based on
+`vaultwarden-http-headers-fast.conf.example`; pin the exact Vaultwarden
+collection and item IDs there. The helper checks the configured server,
+account, collection membership, and item name, and reads the local
+encrypted CLI vault without a per-call sync. Bootstrap or resync that CLI
+vault with the general helper before first use and after key rotation.
+
+For faster connection startup, the cached helper reads an in-memory
+header from a separate user service over an owner-only Unix socket. The
+service syncs and refreshes the exact Vaultwarden item every 15 minutes;
+it does not write the header to disk or expose a TCP listener. The client
+falls back to `scripts/vaultwarden-http-headers-fast.sh` if the cache
+is unavailable after three local cache reads, with two short retries.
+The cache reads each have a 100 ms timeout, with 50 ms and 100 ms between
+retries; then the client invokes the fast direct helper. Keep the cache
+service independent of Codex remote-control startup, because Vaultwarden
+may be locked after reboot. After key rotation, restart the cache service
+and reconnect the MCP client to pick up the new header. This cache
+serves only the selected n8n header; the Vaultwarden service note
+documents a future pattern for other agent credentials.
 
 Test the helper by piping its output directly to a structural validator. Never
 print the returned JSON, because its `Authorization` value is the live token.
 Verify the MCP initialize exchange and tool catalog through private HTTPS, then
 confirm at least one deliberately exposed workflow is discoverable. Rotating
 the n8n MCP key invalidates the old value and requires updating the vault item.
+
+### Codex discovery timing and recovery
+
+Codex's optional MCP discovery grace period defaults to 1000 ms. A dynamic
+Vaultwarden-backed header helper can exceed that short grace period even when
+the n8n endpoint is reachable and authenticated. The symptom is a missing n8n
+server or tool catalog in Codex, not necessarily an n8n authentication error.
+
+Set the root-level Codex option before any TOML table and keep n8n's own startup
+timeout finite:
+
+```toml
+mcp_optional_startup_grace_ms = 0
+
+[mcp_servers.n8n]
+startup_timeout_sec = 45
+```
+
+The zero global grace makes Codex wait up to the bounded per-server timeout; it
+does not disable timeout protection. Keep the MCP client configured to prompt
+for write-capable tools. Do not place the global option inside
+`[mcp_servers.n8n]`, add a duplicate, or weaken the protected configuration's
+`0600` mode.
+
+The setting is read when the Codex remote-control runtime starts. Apply it only
+at a safe checkpoint with the actual user-runtime restart. That restart
+disconnects the active remote-control task, so checkpoint, reconnect with a new
+task after the service is healthy, and then verify that native n8n tools appear.
+Do not claim the change is active from a file edit or a unit reload alone.
+
+For verification, let the configured MCP client invoke
+`scripts/vaultwarden-http-headers-cached.py` and perform `initialize`, the initialized
+notification, and then `tools/list`. Reuse the returned session identifier when
+the server supplies one; otherwise follow its stateless HTTP behavior. A helper
+result may be piped directly to the client or a structural pass/fail validator,
+but must never be printed or saved: the JSON contains the live `Authorization`
+value. Record only successful request status and that the catalog is present,
+then confirm a write-capable tool still prompts for approval. Do not print
+headers, session identifiers, raw JSON-RPC responses, or unredacted client logs.
+
+If discovery still fails, first confirm the single root-level setting and an
+actual runtime restart/new task. Next check the protected helper configuration,
+credential scope, and endpoint reachability without exposing header output. If
+the helper is slow, adjust only the finite per-server timeout approved by the
+profile. To roll back, remove the root-level option to restore Codex's 1000 ms
+default (or restore its prior approved value), restart the runtime, and
+reconnect with a new task.
 
 ## Update considerations
 
@@ -121,9 +195,12 @@ Compose health checks and n8n health endpoint, and retain the previous image
 until the updated stack is healthy. A locked post-reboot VM therefore leaves
 the updater harmlessly stopped until the data disk is unlocked and mounted.
 
-Because n8n updates may run database migrations, take the configured backup or
-snapshot before updating and verify login, workflow loading, task-runner health,
-and a small test workflow afterward.
+Because n8n updates may run database migrations, follow the profile's backup
+choice. Take a backup or snapshot first when one is configured. When backups
+are deferred, the automatic update still runs at its configured time without
+a database rollback point; a retained container image cannot undo a database
+migration. Afterward, verify login, workflow loading, task-runner health, and
+a small test workflow.
 
 Resolve the physical Compose directory before running update commands. Calling
 Compose through a compatibility symlink can change the inferred project name,
@@ -140,6 +217,9 @@ after proving that its containers and volumes contain no service data.
 - The instance-level MCP endpoint authenticates through the Vaultwarden-backed
   header helper, exposes its tool catalog, and limits workflow execution to
   workflows deliberately marked available in MCP.
+- After the Codex runtime restart and a new task, native n8n MCP tools are
+  discoverable, `initialize` and `tools/list` pass through the helper, and
+  write-capable tools still require approval without exposing header material.
 - The editor and database are unavailable through unintended LAN interfaces.
 - After a VM reboot, the stack remains stopped while locked, then returns with
   its saved workflows after remote unlock.
