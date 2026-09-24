@@ -52,6 +52,27 @@ Use n8n's current `N8N_WEBHOOK_URL` environment variable for the HTTPS webhook
 base URL presented to tailnet clients. Keep the editor URL and protocol
 settings aligned with the same private HTTPS hostname.
 
+### Restricted URL-fetch helper
+
+When a workflow must fetch user-supplied URLs, run the fetcher as a separate
+Compose service with no published host port. Attach n8n and the fetcher to a
+dedicated `internal: true` bridge; attach only the fetcher to a second bridge
+for outbound DNS and HTTPS. Do not attach the fetcher to the application
+default network, where it could reach the database or runner. Use a
+health-checked, resource-limited Node LTS container with a read-only source
+mount and root filesystem, dropped capabilities, no-new-privileges, bounded
+logs, and an explicit ephemeral `/tmp`.
+
+Keep the fetcher's requested URL out of n8n Code and generic HTTP Request nodes.
+Resolve and validate every DNS answer, pin a public address for the request,
+disable automatic redirects and validate each target before requesting it,
+enforce a total deadline and response byte cap, and reject unexpected content
+types or encodings. A separate fetcher failure must leave the n8n service
+healthy; the workflow should return a generic unavailable result without
+continuing to storage. Keep the Compose override beside the base Compose file
+so the standard update command loads, health-checks, and restarts the helper
+with the rest of the project.
+
 ## Encryption pattern
 
 For stolen-image protection, attach a separate LUKS data disk and place Docker's
