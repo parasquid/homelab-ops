@@ -66,12 +66,13 @@ logs, and an explicit ephemeral `/tmp`.
 Keep the fetcher's requested URL out of n8n Code and generic HTTP Request nodes.
 Resolve and validate every DNS answer, pin a public address for the request,
 disable automatic redirects and validate each target before requesting it,
-enforce a total deadline and response byte cap, and reject unexpected content
-types or encodings. A separate fetcher failure must leave the n8n service
-healthy; the workflow should return a generic unavailable result without
-continuing to storage. Keep the Compose override beside the base Compose file
-so the standard update command loads, health-checks, and restarts the helper
-with the rest of the project.
+enforce a total deadline and response byte cap, strictly decode UTF-8, and
+reject control-heavy or known binary payloads even when they claim to be HTML.
+Also reject unexpected content types or encodings. A separate fetcher failure
+must leave the n8n service healthy; the workflow should return a generic
+unavailable result without continuing to storage. Keep the Compose override
+beside the base Compose file so the standard update command loads,
+health-checks, and restarts the helper with the rest of the project.
 
 ## Encryption pattern
 
