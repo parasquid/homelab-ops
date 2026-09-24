@@ -1,19 +1,20 @@
-# Service notes
+# Service deployment guides
 
-These pages record the reusable decisions behind each service shape. They are
-sanitized references for operators and agents, not exports of live systems.
+These pages are build guides for reference service designs. They explain how
+to make and verify a choice without reporting any site's current state.
 
 Each page should explain:
 
-- the selected VM, storage, network, encryption, update, and backup shape;
+- VM, storage, network, encryption, update, and backup options for the design;
 - why those choices fit the service and what operational consequences follow;
 - bootstrap and agent-access dependencies;
-- failures or gotchas worth avoiding on the next deployment; and
+- generic failure modes and how to avoid or recover from them; and
 - the acceptance checks that prove the design works.
 
-Live domains, addresses, usernames, VM IDs, credential-item names, paths tied
-to one workstation, secret values, and transient health output belong only in
-the ignored inventory and per-service handoff.
+The public page must not say which options a particular deployment selected,
+what changed there, or which checks passed. Live domains, addresses, usernames,
+VM IDs, credential-item names, workstation paths, secret values, and status
+belong only in the ignored inventory and per-service handoff.
 
 - [n8n](n8n.md)
 - [Suwayomi](suwayomi.md)

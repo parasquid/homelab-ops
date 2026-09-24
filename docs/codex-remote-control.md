@@ -8,11 +8,10 @@ identifiers into tracked documentation.
 
 The official product references are [Codex remote connections](https://developers.openai.com/codex/remote-connections)
 and the [Codex app server](https://developers.openai.com/codex/app-server).
-The `remote-control` command is version-sensitive: some standalone releases
-label it experimental, and the literal command is not currently described in
-the public reference. Verify the local CLI help before changing a service and
-prefer behavior confirmed on the installed release. Do not infer that pairing
-is active merely because the service is enabled.
+The `remote-control` command is version-sensitive. Verify the official
+reference and local CLI help before changing a service; use behavior confirmed
+on the installed release. Do not infer that pairing is active merely because
+the service is enabled.
 
 ## Architecture
 

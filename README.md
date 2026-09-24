@@ -49,19 +49,23 @@ OpenSSH over Tailscale, Caddy, and Cloudflare DNS validation. LXC, public ingres
 clustered applications, and full infrastructure-as-code are intentionally out
 of scope until a real deployment needs them.
 
-## Service notes
+## Service deployment guides
 
 - [n8n](docs/services/n8n.md) shows a stateful web application with a
   database and a version-coupled task runner.
 - [Suwayomi](docs/services/suwayomi.md) shows a media-oriented application
-  following a rolling preview channel with daily container updates.
+  with an optional preview-channel variant and guarded daily container updates.
 - [Vaultwarden](docs/services/vaultwarden.md) shows a private password
   manager with internal Mailpit capture, guest LUKS, and a locked-boot handoff.
 - [Codex Remote Control](docs/codex-remote-control.md) documents a reusable
   immutable-Linux and per-user systemd setup for the standalone Codex CLI.
+- [Cloudflare Workers Builds](docs/cloudflare-workers-builds.md) covers
+  reusable Hugo build diagnosis, authorized deployment, and live verification.
 
-The notes are sanitized and canonicalized. They document both the chosen shape
-and its rationale, not the exact configuration or inventory of any live system.
+The notes are build guides: they explain reference choices, their tradeoffs,
+setup steps, and acceptance checks. They do not report a deployment's chosen
+values, status, history, or test results. Those facts belong in ignored local
+profiles, inventory, and handoffs.
 
 Before publishing, copy `.publication-denylist.example` to the ignored
 `.publication-denylist`, add one exact site-specific value per line, set mode
@@ -72,8 +76,9 @@ Before publishing, copy `.publication-denylist.example` to the ignored
 ```
 
 The check rejects tracked local/private paths, scans every tracked file for the
-ignored exact-value denylist, and checks common secret patterns. It does not
-embed live identifiers in the repository.
+ignored exact-value denylist, and checks common secret patterns. Review tracked
+Markdown separately for deployment-state prose; a value scan cannot detect a
+sanitized diary. Do not embed live identifiers in the repository.
 
 The repository includes the generic
 [`scripts/unlock-from-vaultwarden.sh`](scripts/unlock-from-vaultwarden.sh)

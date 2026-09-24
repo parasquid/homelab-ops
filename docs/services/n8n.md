@@ -1,7 +1,7 @@
-# n8n service notes
+# n8n deployment guide
 
-This is a sanitized, canonicalized example. It demonstrates the pattern and is
-not a literal export of a live deployment.
+Use this guide to build a private n8n VM. Select site values in a local profile
+and verify the result with the acceptance checks below.
 
 ## Decisions and consequences
 
@@ -138,19 +138,19 @@ account, collection membership, and item name, and reads the local
 encrypted CLI vault without a per-call sync. Bootstrap or resync that CLI
 vault with the general helper before first use and after key rotation.
 
-For faster connection startup, the cached helper reads an in-memory
-header from a separate user service over an owner-only Unix socket. The
-service syncs and refreshes the exact Vaultwarden item every 15 minutes;
-it does not write the header to disk or expose a TCP listener. The client
-falls back to `scripts/vaultwarden-http-headers-fast.sh` if the cache
-is unavailable after three local cache reads, with two short retries.
-The cache reads each have a 100 ms timeout, with 50 ms and 100 ms between
-retries; then the client invokes the fast direct helper. Keep the cache
-service independent of Codex remote-control startup, because Vaultwarden
+For faster connection startup, configure the cached helper to read an in-memory
+header from a separate user service over an owner-only Unix socket. Sync and
+refresh the exact Vaultwarden item every 15 minutes without writing the header
+to disk or exposing a TCP listener. Configure the client to fall back to
+`scripts/vaultwarden-http-headers-fast.sh` if the cache is unavailable after
+three local cache reads, with two short retries. Set a 100 ms timeout for each
+cache read and wait 50 ms and 100 ms between retries before invoking the fast
+direct helper. Keep the cache service independent of Codex remote-control
+startup, because Vaultwarden
 may be locked after reboot. After key rotation, restart the cache service
-and reconnect the MCP client to pick up the new header. This cache
-serves only the selected n8n header; the Vaultwarden service note
-documents a future pattern for other agent credentials.
+and reconnect the MCP client to pick up the new header. Scope this cache to
+the selected n8n header; use the Vaultwarden service note's scoped-credential
+pattern if another agent credential needs a cache.
 
 Test the helper by piping its output directly to a structural validator. Never
 print the returned JSON, because its `Authorization` value is the live token.

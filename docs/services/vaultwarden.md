@@ -1,7 +1,7 @@
-# Vaultwarden service notes
+# Vaultwarden deployment guide
 
-This is a sanitized, canonicalized example. It describes a reusable private
-password-manager pattern rather than a live deployment.
+Use this guide to build a private password-manager VM. Select site values in a
+local profile and verify the result with the acceptance checks below.
 
 ## Decisions and consequences
 
@@ -40,8 +40,8 @@ password-manager pattern rather than a live deployment.
 ## Hostnames and SMTP verification
 
 Use `<component>.<service>.<base-domain>` for auxiliary private endpoints. A
-sanitized deployment therefore uses `vaultwarden.example.invalid` for the
-service and `mail.vaultwarden.example.invalid` for the Mailpit UI.
+reference example is `vaultwarden.example.invalid` for the service and
+`mail.vaultwarden.example.invalid` for the Mailpit UI.
 
 Caddy protects the Mailpit web UI with basic auth. Mailpit's SMTP listener is a
 Compose-internal service with `smtp_auth: none`; it has no SMTP username or
@@ -126,10 +126,10 @@ the authoritative recovery material externally.
 
 ## Future scoped local credential cache
 
-The n8n MCP header cache demonstrates a narrow, owner-only in-memory cache.
-Extending it to other agent credentials is a documented design only; it is
-not a general credential service today. An extension should use protected
-service aliases mapped to exact item and collection IDs, expected names,
+Use the n8n MCP header cache pattern for a narrow, owner-only in-memory cache.
+Keep a general credential service outside the baseline design. An optional
+extension should use protected service aliases mapped to exact item and
+collection IDs, expected names,
 response formats, and intended destinations. Refresh each item only after
 checking the configured server, agent account, item identity, and collection
 membership. Clients must not supply arbitrary item IDs, searches, or CLI
@@ -156,8 +156,8 @@ passphrase and off-VM LUKS header backup are required recovery material.
 
 ## Updates and backups
 
-The selected application channel is updated daily at 03:00 local time after a
-mount check and health verification. Keep the previous image until the update
+Schedule updates for the selected application channel at 03:00 local time after
+a mount check and health verification. Keep the previous image until the update
 is healthy. Same-disk encrypted rollback snapshots can undo a bad update, but
 they are not external disaster recovery; an explicit off-host backup plan is a
 separate requirement.
@@ -168,5 +168,5 @@ The operator creates the owner account through private HTTPS and chooses the
 signup policy after bootstrap. Protected local files supply bootstrap
 credentials. After owner setup, Vaultwarden is the primary agent-managed
 credential store. Its own authoritative LUKS recovery material stays outside
-Vaultwarden. Local-file bootstrap is supported now; a gopass adapter is an
-optional future integration and is not implemented.
+Vaultwarden. Use local-file bootstrap for this reference design. Treat a gopass
+adapter as a separate extension.

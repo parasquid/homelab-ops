@@ -4,11 +4,29 @@ These instructions apply to every task performed from this repository.
 
 ## Public reference and private inventory
 
-Tracked files are reusable procedures, sanitized examples, and templates. They
-must not contain site-specific domains, addresses, usernames, hostnames, VM
-IDs, credentials, tokens, key material, or transient health output.
-Reserved example values, placeholders, and generic service names are allowed
-when they are clearly presented as examples.
+Tracked files are instructions for another operator to build and verify a
+similar setup: reusable procedures, reference designs, and templates. They are
+not a record of this site's deployment. Explain choices as instructions or
+conditions, with their reasons, consequences, and acceptance checks. Reserved
+example values, placeholders, and generic service names are allowed when they
+are clearly presented as examples.
+
+Do not put live deployment state, operator decisions, audit findings, incident
+chronology, change history, observed versions, test outcomes, or pending work
+in tracked files, even after removing identifiers. Do not describe a tracked
+service note as a sanitized export or a diary of an existing deployment. A
+statement such as "the server currently runs" belongs in ignored local records;
+write a reusable instruction such as "configure the server to run" in the
+public reference only when that instruction is useful to a new operator. A
+lesson from a real incident may become a generic failure mode and recovery
+procedure after all site provenance and current-state claims are removed.
+
+Tracked files must not contain site-specific domains, addresses, usernames,
+hostnames, VM IDs, credentials, tokens, key material, or transient health
+output. Keep facts about what this site actually has, did, passed, failed,
+deferred, or chose in `inventory.local.yaml`, `AGENTS.local.md`, and ignored
+per-service handoffs. A public design can state a default or optional choice;
+the local profile and handoff record which choice was made here.
 
 Before any task, read this file and then read `AGENTS.local.md` and
 `inventory.local.yaml` when those ignored files are present. Read `RUNBOOK.md`,
@@ -22,8 +40,12 @@ handoff. Reusable procedure or pattern changes update the tracked runbook,
 templates, and relevant service note. Access, encryption, backup, update, and
 credential-provider changes update both layers. Before final reporting,
 validate the relevant Markdown, YAML, and shell files and run the publication
-safety check. Update suitable `updated_at` or `last_verified_at` fields, but
-do not store transient health output or secrets in either documentation layer.
+safety check. Review every tracked-document diff for deployment-state prose as
+well as identifiers: the automated check cannot detect a sanitized diary. If
+a sentence reports what happened on this site, move it to an ignored local
+record or omit it. Update suitable `updated_at` or `last_verified_at` fields
+only in local records; do not store transient health output or secrets in
+either documentation layer.
 
 ## Access model
 
@@ -121,5 +143,5 @@ A deployment is complete only after recording and verifying:
   start after unlock, recovery keyslot, and off-VM header backup.
 - The configured update policy and the outcome of an update-path test.
 - Backup status, including an explicit statement when backups are deferred.
-- A sanitized deployment record containing versions, paths, tests, exceptions,
+- An ignored local deployment record containing versions, paths, tests, exceptions,
   maintenance commands, and recovery instructions.

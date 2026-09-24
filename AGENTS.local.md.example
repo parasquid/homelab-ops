@@ -28,11 +28,11 @@ and transient command output out of this file.
 - Primary agent-managed store after bootstrap: Vaultwarden.
 - Vaultwarden's authoritative LUKS recovery material remains outside
   Vaultwarden so the service can be unlocked before the store is available.
-- A gopass adapter is an optional future integration and is not implemented.
+- If using a gopass adapter, record its scope and bootstrap path here.
 
 ## Service notes
 
-Record only sanitized operational facts and references here, such as locked-boot
-recovery, daily update time, rollback-only backup status, and the handoff URL
-shape. Keep live values in `inventory.local.yaml` and secrets in their external
-protected stores.
+Record operator decisions, operational constraints, and references here. Keep
+structured site values in `inventory.local.yaml` and secrets in their external
+protected stores. This ignored file may describe local state; tracked guides
+must remain reusable instructions.

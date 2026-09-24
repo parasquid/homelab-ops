@@ -3,8 +3,9 @@
 This runbook describes the default path for deploying one private service in a
 dedicated Proxmox VM. The service profile is authoritative for sizing and
 exceptions. Values from the local `.env` supply site-specific configuration.
-The matching page under `docs/services/` records why the service uses its
-particular shape and the consequences and gotchas that future operators need.
+The matching page under `docs/services/` teaches the reference design choices,
+their consequences, and failure modes that another operator can avoid. Record
+the choices and results for this site only in ignored local files.
 
 ## 1. Establish the desired state
 
@@ -445,9 +446,9 @@ the bounded retry window leaves time for Codex’s 10-second helper limit.
 Do not make Codex remote-control startup depend on the cache: an encrypted
 Vaultwarden VM may remain locked after reboot.
 
-For additional agent credentials, a scoped local cache is a future pattern,
-not a deployed general Vaultwarden API. Reuse the cache implementation only
-with a protected allowlist that maps service aliases to exact collection and
+For additional agent credentials, keep a general Vaultwarden API outside the
+baseline design. Extend a scoped local cache only with a protected allowlist
+that maps service aliases to exact collection and
 item IDs, expected item names, response formats, and intended destinations.
 Validate the Vaultwarden server, agent account, item identity, and collection
 membership on every refresh. Reject arbitrary item IDs, searches, and CLI
@@ -477,9 +478,9 @@ policy. During bootstrap, protected local files are the credential source. Once
 the owner completes setup, Vaultwarden is the primary agent-managed credential
 store. Its authoritative LUKS recovery material must remain outside Vaultwarden
 because it is required before Vaultwarden is available. A local-file bootstrap
-is the supported path; a gopass adapter is an optional future integration and
-is not implemented. A raw Mailpit capture alone does not exercise Vaultwarden's
-SMTP configuration; perform a real Vaultwarden verification-email acceptance
+is the supported path. Treat a gopass adapter as a separate extension outside
+this reference design. A raw Mailpit capture alone does not exercise
+Vaultwarden's SMTP configuration; perform a real verification-email acceptance
 test after owner setup and record its result in the private handoff.
 
 ## 12. Configure optional MCP discovery for agent clients
@@ -546,7 +547,7 @@ policy explicit.
 
 ## 13. Handoff and lifecycle
 
-Produce a sanitized deployment record containing:
+Produce an ignored local deployment record containing:
 
 - Purpose, profile, VM resource allocation, and storage layout.
 - Operating-system, application, database, helper, Caddy, Docker, and Tailscale
@@ -559,10 +560,10 @@ Produce a sanitized deployment record containing:
 - Routine start, stop, logs, update, reboot, and recovery commands.
 - All deviations from this runbook and all deferred work.
 
-Update the matching tracked service note whenever a deployment establishes a
-reusable decision, consequence, failure mode, or acceptance check. Keep exact
-deployment facts in the ignored inventory and handoff so the public note does
-not become an infrastructure map.
+Update the matching tracked service note only when work reveals a reusable
+procedure, design tradeoff, generic failure mode, or acceptance check. Write
+it as guidance for a new operator. Put the originating deployment's status,
+history, and exact identifiers only in the ignored inventory and handoff.
 
 Before an application update, create the configured backup or snapshot when the
 profile enables one. If backups are deferred, let the configured update policy

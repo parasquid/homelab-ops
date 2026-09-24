@@ -1,45 +1,51 @@
-# Suwayomi service notes
+# Suwayomi deployment guide
 
-This is a sanitized, canonicalized example. It captures useful behavior from an
-existing deployment while applying the runbook's current security defaults.
+Use this guide to build a private Suwayomi VM. Select site values and the
+release channel in a local profile, then run the acceptance checks below.
 
 ## Decisions and consequences
 
-- Use a dedicated VM so media storage, download activity, and a deliberately
-  faster release channel do not affect unrelated services.
+- Use a dedicated VM so media storage and download activity do not affect
+  unrelated services. An optional preview channel can then follow its own
+  update and recovery policy.
 - Keep the application private behind the same Tailscale, DNS-only Cloudflare,
   and Caddy pattern as other web services.
 - Treat large media separately from configuration and database state. Media
   that can be downloaded again may use a different backup policy from the
   metadata needed to reconstruct the service.
-- Follow the preview channel only as an explicit service exception. Health
-  checks and retained previous images are required because preview updates have
-  a higher regression risk than the default stable channel.
+- Choose the stable channel by default. Select preview only as an explicit
+  profile exception, with health checks and retained previous images because
+  preview updates have a higher regression risk.
 
 ## Profile characteristics
 
 - Dedicated VM sized for the library and expected download activity.
+- Administer the VM with key-only OpenSSH over Tailscale; leave Tailscale SSH
+  disabled. When converting an existing VM, verify the approved key and the
+  OpenSSH host key through the Proxmox guest agent, then test OpenSSH before
+  disabling Tailscale SSH and again afterward.
 - Docker Compose application directory standardized as `/opt/suwayomi`.
 - Suwayomi and optional request-helper containers.
 - A large data disk or documented external mount when the library exceeds the
   practical size of the root disk.
-- Suwayomi binds to loopback under the current standard.
+- Bind Suwayomi to loopback.
 - Caddy provides private HTTPS through a DNS-only hostname resolving to the
   Tailscale address.
 
 ## Update policy
 
-This service intentionally follows Suwayomi's preview channel. Its helper
-containers follow their selected rolling channels. A daily update job performs:
+Set the release channel in the local profile. For a preview-channel variant,
+select compatible helper channels and schedule an updater at the local
+maintenance time. Have the updater perform:
 
 ```bash
 docker compose pull
 docker compose up -d
 ```
 
-The canonical implementation should add an overlap lock, bounded logging, and a
-post-update health check. Preview is an explicit exception; other applications
-default to their stable channel.
+Wrap the updater in an overlap lock, bound its logs, and verify application
+health before reporting success. Retain the previous image until the updated
+service is healthy.
 
 ## Persistent state
 
