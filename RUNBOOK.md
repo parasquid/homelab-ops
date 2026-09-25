@@ -44,6 +44,23 @@ For media or file services, separate the small operating-system disk from large
 or independently managed application data when doing so improves backup,
 expansion, or recovery.
 
+Provision every new VM disk as sparse by default, including OS and data disks.
+Use a thick allocation only when the service profile explicitly selects it and
+records why. On Proxmox, local-lvm is thin by design; configure ZFS-backed
+storage for sparse volumes where the storage supports that option. Verify the
+storage configuration and per-volume reservation before import or creation.
+Track logical provisioned capacity separately from actual allocated bytes and
+monitor pool free space, health, and metadata so sparse growth does not exhaust
+the backing pool. This is a default for new disks; do not move, recreate, or
+convert existing VM disks as part of applying it.
+
+Use ext4 inside the guest as the default filesystem for every new VM disk,
+regardless of whether its backing storage is ZFS or thin LVM. A service profile
+may name another guest filesystem when the application requires it. For an
+encrypted data disk, create ext4 on the unlocked LUKS mapper; do not create a
+guest ZFS pool by default. Preserve the selected guest filesystem choice in the
+service profile and verify it from inside the VM.
+
 ## 3. Prepare and verify the operating-system image
 
 Use an official Debian generic cloud image. Download the image and checksum
@@ -59,6 +76,11 @@ Create a QEMU/KVM VM using the profile values. The baseline includes:
 
 - VirtIO networking on the configured bridge.
 - VirtIO SCSI storage with discard enabled where supported.
+- Sparse virtual allocation for every new disk unless its service profile
+  explicitly selects thick allocation.
+- ext4 as the default guest filesystem for new OS and data disks. For a LUKS
+  data disk, put ext4 on the unlocked mapper. The host storage backend does not
+  determine the guest filesystem.
 - DHCP unless the site profile requires a reserved or static address.
 - VM autostart.
 - QEMU Guest Agent enabled in Proxmox and installed in the VM.
@@ -137,6 +159,11 @@ gate, but does not bypass OpenSSH host-key verification. Do not use
 `StrictHostKeyChecking=no`, accept an unverified key, or alter system SSH
 configuration ownership to work around the sandbox error.
 
+For a VM reachable only from the Proxmox node, chain another OpenSSH TCP
+forward from Proxmox to that VM's private SSH address. Verify and pin each
+intermediate and final host key independently, and keep strict host-key
+checking enabled on every connection.
+
 ## 6. Configure optional guest LUKS encryption
 
 Use `guest-luks-data` when the service profile must protect application state
@@ -166,6 +193,34 @@ path and verify its serial, capacity, VM attachment, and lack of existing
 signatures. Never rely on a transient name such as `/dev/sdb` without those
 checks.
 
+Install the distribution's `cryptsetup` package from its signed official
+repository before formatting, and verify that the guest command is available.
+Do not start formatting when the utility is missing. After an interrupted SSH
+operation, reconnect and inspect the disk identity and LUKS header before
+retrying: a lost SSH session can hide the guest command's actual error.
+
+Format the LUKS mapper as ext4 unless the service profile explicitly selects a
+different guest filesystem. Use ext4 lazy initialization and do not run a
+whole-disk zeroing, random-fill, or discard pass when sparse virtual allocation
+is intended. Check the backing pool's actual allocated bytes after formatting
+and filesystem creation; do not infer allocation from the virtual disk's
+logical size. For example:
+
+```bash
+sudo mkfs.ext4 \
+  -E nodiscard,lazy_itable_init=1,lazy_journal_init=1 \
+  /dev/mapper/service-data
+```
+
+`nodiscard` prevents the formatter from discarding the virtual device. Lazy
+inode-table and journal initialization reduce format-time writes; the kernel
+completes the deferred work after the first mount, so allow that initialization
+to finish before treating format-time performance as steady-state. Ext4
+metadata and its deferred initialization still allocate backing blocks as they
+are written. Record the host pool's actual allocated bytes before and after
+each disk-writing stage, then again after lazy initialization settles; sparse
+allocation does not imply zero metadata allocation.
+
 Pass the key through standard input for both format and unlock operations. A
 remote unlock follows this pattern:
 
@@ -175,11 +230,12 @@ ssh "${VM_ADMIN_USER}@${VM_HOST}" \
   < "${LUKS_KEY_FILE}"
 ```
 
-Create a filesystem and mount the mapper at the profile's mount point. Place
-Docker's data root, `/opt/<service>`, application secrets, and all persistent
-bind mounts on this filesystem. Configure Docker, Caddy, and the application so
-they cannot start before the encrypted filesystem is mounted. Caddy's API token
-belongs in a protected environment file on the encrypted disk, while the
+Create the profile's guest filesystem (ext4 by default) and mount the mapper at
+the profile's mount point. Place Docker's data root, containerd's persistent
+root, `/opt/<service>`, application secrets, and all persistent bind mounts on
+this filesystem. Configure Docker, containerd, Caddy, and the application so
+they cannot start before the encrypted filesystem is mounted. Caddy's API
+token belongs in a protected environment file on the encrypted disk, while the
 Caddyfile itself contains only an environment reference.
 
 Add a separate human recovery passphrase in another LUKS keyslot and store it
@@ -197,6 +253,8 @@ services are started. Test both the locked and unlocked boot states.
 
 Install Docker Engine and the Compose plugin from Docker's official repository.
 Create `/opt/<service>` and give the VM administrator appropriate ownership.
+For encrypted profiles, configure Docker's data root and containerd's persistent
+root on the mounted encrypted filesystem before starting either service.
 
 The Compose deployment should:
 
@@ -300,10 +358,18 @@ Run and record these acceptance checks:
 1. VM resources, disk size, network, autostart, and guest-agent status match the
    profile.
 2. Tailscale is healthy and `VM_ADMIN_USER` can log in and use sudo.
-3. Containers are running and all defined health checks pass.
+3. Containers are running and all defined health checks pass. After an
+   installer finishes, inspect the actual container list and listening sockets;
+   do not infer container state from an inactive unit or an installer
+   `--no-start` option. If an unexpected service or listener appears, stop the
+   scoped application through its documented service path and confirm the
+   containers and sockets are gone. Preserve volumes while investigating.
 4. Persistent data exists in the documented locations.
 5. The hostname resolves to the intended Tailscale address.
 6. HTTPS returns the expected application response with a valid certificate.
+   For authenticated applications, also complete a real login through the
+   private endpoint; an HTTP health response alone does not verify the auth
+   path. Do not create public DNS or widen ingress before login succeeds.
 7. Application and database ports are not reachable through unintended LAN or
    public addresses.
 8. Listener inspection matches the exposure profile.

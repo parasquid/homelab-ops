@@ -1,197 +1,208 @@
-# Persistent browser workspaces
+# Persistent Firefox browser workspaces
 
-Use a dedicated Kasm Workspaces VM when people need an always-available Firefox
-workspace and automation may later need isolated browser screenshots. Keep the
-attended Firefox, any authenticated screenshot browser, and public one-shot
-screenshot jobs in separate Kasm users or workspaces with distinct profile
-storage.
+Use a dedicated VM for interactive browser work so browser state, downloads, and
+updates do not change an automation service. For one attended Firefox session,
+the LinuxServer Firefox image provides Firefox in a browser-accessible KasmVNC
+desktop. Kasm Workspaces is an optional choice when its multi-user workspace
+management, session sharing, or Developer API is required.
 
-## Decisions and consequences
+## Single-user Firefox workspace
 
-- Use a dedicated VM so browser containers, downloaded files, browser state,
-  and updates do not change an existing automation service. A modest VM usually
-  supports one interactive browser session at a time; size CPU and memory from
-  the selected Kasm workspace's resource limits and expected concurrency.
-- Use a supported stable Kasm release and the vendor's documented installation
-  path. Verify the downloaded installer against the matching publisher-provided
-  checksum file, and compare with the release documentation when it publishes a
-  digest. Stop if trusted publisher sources disagree; do not select whichever
-  digest happens to match the download.
-- Put Kasm configuration, container state, browser profiles, and any service
-  credentials on a separate guest LUKS data disk. Keep the OS bootable while
-  locked, but leave Docker, Kasm, and the reverse proxy stopped until an
-  operator unlocks and mounts the data disk. A stolen, powered-off disk then
-  needs the unlock material, while a compromised running VM remains within the
-  VM's trust boundary.
-- Use a tailnet-only HTTPS reverse proxy. The DNS record should be DNS-only and
-  resolve to the VM's tailnet address. Bind the proxy only to that address and
-  keep the Kasm backend reachable only from the local VM. Do not enable public
-  ingress, a tunnel, or an additional remote-desktop listener unless a separate
-  design explicitly requires it.
-- Treat a persistent browser profile like an application credential store.
-  Cookies, local storage, saved passwords, visited sites, and downloads may be
-  present. Limit who can access the Kasm account and encrypted disk, and never
-  mount an attended user's profile into an automation workspace.
+Pin a supported LinuxServer Firefox version and its verified image digest. Do
+not deploy a moving `latest` tag in production. Check the selected
+architecture and image metadata against LinuxServer's published image before
+updating.
 
-## Profile and session choices
+The web desktop is served on container port 3000 over HTTP. The image also has
+a separate HTTPS port 3001. Publish only port 3000 on VM loopback, and keep
+3001 unpublished. Put the VM behind a tailnet-only HTTPS proxy after the VM has
+joined the intended tailnet. The proxy must bind to the VM's tailnet address;
+do not create a public DNS record, forward a router port, or expose the GUI
+directly to the LAN.
 
-Kasm publishes the Firefox workspace image; select a tag compatible with the
-installed Kasm release (for example, `kasmweb/firefox:1.19.0` with Kasm 1.19.0).
-Kasm persistent profiles mount a user's browser home directory into the
-workspace container.
-Use a unique profile path for each Kasm user and workspace combination so
-unrelated accounts cannot read or overwrite one another. Keep the profile
-mount enabled for attended Firefox work that needs durable sign-ins. A Firefox
-add-on installed in that profile can be retained with the rest of the profile,
-but compatibility and operation still depend on the add-on and its
-permissions; test the required add-on inside the selected Kasm image. Disable
-the profile mount only for deliberately ephemeral jobs. A profile preserves
-browser files such as cookies and local storage; it does not preserve a live
-browser process, JavaScript heap, open form state, or unsaved page state after
-the container is destroyed.
+Enable the image's Basic Auth with a dedicated username and a strong password
+provided through a protected file using LinuxServer's `FILE__` environment
+support. Keep the file on the encrypted data filesystem with owner-only
+permissions. Do not store the password in Compose, container labels, shell
+arguments, repository files, or logs. Basic Auth is an application gate; keep
+the network path private as well.
 
-Configure the browser to restore its previous tabs on startup. After a
-workspace is stopped or deleted, a new workspace can then recover saved
-cookies, local storage, and restorable tab URLs from its mounted profile. A
-restart still reloads pages and may require a site sign-in or confirmation.
-Document the results for the selected browser image rather than promising that
-every site's live session will survive.
+A minimal Compose shape is:
 
-Pausing a running Kasm session retains its processes and open tabs while the
-VM remains powered on and the session remains allocated. Stopping or expiring
-the session ends those processes. Rebooting the VM also ends every live
-session; only profile files and browser startup settings remain for a later
-workspace. Use Kasm's authenticated session-sharing feature only for a
-trusted, intended audience. A session share grants access to the active
-browser contents, so stop sharing when the attended task is complete.
+```yaml
+services:
+  firefox-attended:
+    image: lscr.io/linuxserver/firefox:<version>@sha256:<verified-digest>
+    environment:
+      PUID: "1000"
+      PGID: "1000"
+      TZ: Etc/UTC
+      CUSTOM_USER: attended
+      FILE__PASSWORD: /run/secrets/firefox_password
+    volumes:
+      - <encrypted-data-path>/firefox/attended/config:/config
+      - <encrypted-data-path>/secrets/firefox_password:/run/secrets/firefox_password:ro
+    ports:
+      - "127.0.0.1:3000:3000"
+    shm_size: 1gb
+    restart: unless-stopped
+```
 
-Keep at least these identities separate:
+Replace each angle-bracket value before use. Store the Compose file and
+password file on the encrypted filesystem. Set the host owner of the `/config`
+directory to the configured PUID/PGID. Keep the container's `/config` bind
+mounted there so replacing the container does not replace the browser profile.
+The profile contains cookies, local storage, saved credentials, history,
+downloads, and possibly other private browser data.
 
-| Workspace | Profile policy | Intended use |
+Keep one private profile path per attended user. Never mount an attended
+profile into n8n or a screenshot container. If more than one attended user is
+needed, give each user a separate container, credential, and `/config` path.
+
+## Profile and session behavior
+
+Firefox profile files on the persistent `/config` mount survive container
+replacement. This includes cookies and local storage after Firefox has flushed
+them to disk. Do not treat container persistence as a guarantee that every
+website will preserve a live login: sites can expire sessions or require a new
+sign-in.
+
+Set Firefox's `browser.startup.page` preference to `3` in the persistent
+profile so a normal browser start restores the previous session's tabs. Set
+`browser.sessionstore.resume_from_crash` to `true` so Firefox can offer
+recovery after an unexpected close. Keep the profile on `/config`, and verify
+that the chosen image reads these preferences. A restored tab reloads its URL;
+the page may request a fresh login or confirmation.
+
+Stopping the browser or VM ends running processes, JavaScript state, and
+unsaved form contents. A browser restart can restore saved tab URLs from the
+profile when session restore is configured. A paused browser process keeps its
+open tabs only while the container and VM remain running. Test and document
+these behaviors for the selected Firefox image. Do not claim tab recovery
+across a VM reboot until it has been tested.
+
+## Separate screenshot identities
+
+Keep future screenshot work separate from the attended account and profile:
+
+| Purpose | Profile policy | Access |
 | --- | --- | --- |
-| Attended Firefox | Persistent, private to its human user | Interactive browsing, sign-ins, and approved Firefox add-ons |
-| Authenticated screenshot browser | Optional separate persistent profile, private to an automation user | Sites that require a dedicated automation sign-in |
-| Public one-shot screenshot | Ephemeral context by default | Pages that need no saved sign-in |
+| Attended browsing | Persistent profile, private to its human user | Private browser UI |
+| Authenticated automation screenshots | Optional separate persistent profile | Dedicated automation account and credential |
+| Public one-shot screenshot jobs | Ephemeral profile or context | No saved sign-in |
 
-The screenshot workspace must never mount the attended profile. If a workflow
-later needs an authenticated screenshot, give it a separately owned Kasm user
-and profile and approve the credential path independently.
+Create a separate Firefox container and `/config` path for authenticated
+automation. Use an ephemeral context for public pages that do not need saved
+sign-in. Never give screenshot automation access to the attended user's cookies
+or profile directory.
 
-### Firefox capture add-ons
+The LinuxServer Firefox container provides a browser UI; it does not provide
+Kasm Workspaces' Developer API for creating sessions and retrieving their
+screenshots. Keep future n8n capture integration on a separate authenticated
+route, such as a reviewed capture extension or an isolated automation browser.
+Do not issue an API credential or connect n8n until the target workflow,
+account isolation, and request path are ready. Keep human browser credentials
+out of n8n.
 
-Firefox has a built-in full-page screenshot tool, and Kasm supports Firefox
-managed policies through a workspace file mapping or a custom image. For a
-purpose-built capture add-on, build and review the extension in its owning
-application repository first. Firefox release builds require Mozilla signing;
-after owner review, distribute a Mozilla-signed unlisted XPI from the local
-workspace rather than publishing it as a public AMO listing or installing an
-unsigned permanent add-on.
+## Firefox capture add-on
 
-Use the Firefox `ExtensionSettings` policy in
-`/etc/firefox/policies/policies.json` to force-install the reviewed extension by
-its exact add-on ID. A local policy can reference a `file:///...` XPI path. Map
-the policy and XPI into each new Kasm session with File Mapping, or build both
-into a custom workspace image when the artifact or policy needs exceed File
-Mapping's limits. Keep this capture add-on scoped to the attended Firefox
-workspace. For each signed update, record its version and digest privately,
-replace the local XPI, update the managed policy if its ID or path changes, and
-start a new workspace to verify installation. See Kasm's [Firefox Managed
-Policies guide](https://docs.kasm.com/docs/1.18.0/how-to/chrome_managed_policies)
-and Mozilla's [Firefox ExtensionSettings policy
-reference](https://mozilla.github.io/policy-templates/#extensionsettings) for
-the supported configuration.
+Build and review the extension in its owning application repository first.
+Firefox release builds require Mozilla signing. After review, distribute a
+Mozilla-signed unlisted XPI from the local browser VM instead of publishing a
+public AMO listing or installing an unsigned permanent add-on.
 
-## Private access and installation outline
+Firefox managed policy uses
+`/etc/firefox/policies/policies.json` and the `ExtensionSettings`
+policy to force-install an extension by its exact add-on ID. Mount the policy
+and signed XPI read-only into the container, or add them to a reviewed custom
+image. A local policy can reference a `file:///` XPI path. For LinuxServer
+images, a custom initialization script can place the policy and XPI before
+Firefox starts. Keep the extension scoped to the attended profile unless a
+separate automation profile is explicitly designed to use it. Record the XPI
+version and digest privately; verify installation and full-page capture after
+each Firefox or extension update.
 
-1. Select a free VM ID, a unique host and tailnet name, an unused DNS name, and
-   storage with enough headroom for Kasm images and browser profile growth.
-   Check the host listener, network, and DNS inventory before creating the VM.
-2. Install a supported Debian cloud image after checking its digest against the
-   official checksum manifest. Keep the OS on its own disk and attach a
-   separately identified data disk for LUKS2.
-3. Format only after verifying the guest disk's stable serial, expected size,
-   VM attachment, and absence of existing signatures. Keep an automation key
-   and an independent recovery passphrase/header backup outside the VM and
-   repository. Do not store their values in service documentation.
-4. Configure the remote unlock path. At boot, start only the OS, Tailscale, and
-   administration access. After unlock, mount the encrypted data disk, then
-   start Docker, Kasm, and the reverse proxy. Confirm that a locked reboot does
-   not start the application stack.
-5. Download the selected Kasm release and its matching publisher checksum
-   artifact from official sources. Verify the exact archive digest before
-   extracting or executing the installer. Follow the release's installation
-   guide, including its documented reverse-proxy settings.
-6. Configure Caddy with a DNS-01 certificate and the provider's token supplied
-   through protected local configuration. Bind Caddy to the tailnet address;
-   proxy to the Kasm HTTPS listener on loopback and configure Kasm's upstream
-   proxy address as required by the release guide. Do not commit the provider
-   token or a live hostname to this repository.
-7. Create a Firefox workspace for attended browsing and separate Kasm users
-   and workspaces for future screenshot work. Set per-workspace CPU/memory
-   limits, persistent profile paths, session timeouts, and sharing permissions
-   deliberately. Verify required Firefox add-ons against that image before
-   treating them as part of the attended workflow.
+See LinuxServer's [Firefox image
+guide](https://docs.linuxserver.io/images/docker-firefox/),
+[container customization guide](https://docs.linuxserver.io/selkies/developer-guide/customization/),
+and [environment variables from
+files](https://docs.linuxserver.io/images/docker-nginx/). See Mozilla's
+[Firefox ExtensionSettings policy
+reference](https://mozilla.github.io/policy-templates/#extensionsettings).
 
-## Future n8n screenshot integration
+## Installation outline
 
-Kasm's Developer API can create a workspace session, report its status, and
-return a screenshot. The documented public API routes include
-`/api/public/request_kasm`, `/api/public/get_kasm_status`, and
-`/api/public/get_kasm_screenshot`; confirm the request shape and permissions
-against the installed release's [Developer API documentation](https://docs.kasm.com/docs/develop/reference/developer-api).
-The documented minimum API key permissions for creating a session on behalf of
-a user are `Users Auth Session` and `User`; assign the key to a dedicated
-automation identity and avoid unrelated permissions. Keep API calls on the
-private tailnet endpoint. Do not pass session-sharing URLs or human browser
-credentials to n8n.
-
-Use ephemeral screenshot sessions for public pages. If authenticated captures
-become necessary, assign their own automation Kasm user and optionally enable
-that user's separately persistent profile. Store any approved API credential
-in the secret store and n8n credential storage, never in workflow JSON, logs,
-or this repository. Do not issue or connect an API credential until the
-target-site workflow and its account isolation are ready. Test session
-creation, status polling, screenshot retrieval, cleanup, profile isolation,
-and failure handling before enabling a production workflow.
+1. Check for a free VM ID, unused hostname and tailnet name, DNS conflicts,
+   storage capacity, and host listener conflicts. Keep the browser VM separate
+   from n8n.
+2. Install an official Debian image after verifying its checksum. Provision
+   new virtual disks sparsely unless the service profile explicitly selects
+   thick allocation. Use ext4 inside the guest regardless of the host storage
+   pool. For encrypted data, create ext4 inside LUKS on the data disk.
+3. Follow the general LUKS procedure in `RUNBOOK.md` section 6. Install
+   `cryptsetup` from the guest distribution's signed official repository
+   before formatting. Check the exact disk serial, size, VM attachment, and
+   absence of existing signatures immediately before formatting. Keep the
+   automation key, independent recovery passphrase, and LUKS header copy
+   outside the VM and repository. Do not zero, random-fill, or discard an
+   entire sparse disk.
+4. Put the container image, Compose file, Firefox `/config`, and Basic Auth
+   secret on the unlocked encrypted filesystem. Start one attended browser
+   container and publish only `127.0.0.1:3000:3000`. Before adding any proxy,
+   inspect the generated container and host listener configuration. Check
+   unauthenticated and authenticated responses separately.
+5. After local health and authentication checks pass, join the VM to its
+   authorized tailnet with Tailscale SSH disabled if OpenSSH is the intended
+   administration route. Configure HTTPS ingress only on the VM's tailnet
+   address. Keep the DNS record DNS-only and pointed to the tailnet address.
+6. If a later design needs multi-user workspaces, active session sharing, or
+   Kasm's Developer API, evaluate Kasm Workspaces separately. Use its matching
+   official installer and checksum, pin the web UI to loopback behind the
+   tailnet proxy, and use unique persistent profiles per user and workspace.
+   A Kasm screenshot API key belongs to a dedicated automation identity and
+   must not grant access to the attended user's browser.
 
 ## Acceptance checks
 
-- The UI is reachable over HTTPS from a tailnet client and is unavailable from
-  unintended LAN or public interfaces. Kasm's backend port is not exposed.
-- A paused session retains its open tabs and running processes while the VM is
-  up. Record what happens at the selected session timeout.
-- For durable-profile testing, write a synthetic cookie and local-storage value
-  on a controlled test origin, stop and delete the workspace, recreate it with
-  the same profile path, and confirm both values are present. Remove test data
-  afterward. Never use profile deletion as the persistence test.
-- Restart a stopped workspace and confirm the browser restores its configured
-  tabs. Reboot the VM and confirm live processes end, the encrypted data disk
-  remains locked until remote unlock, and profile data remains available after
-  the stack is started again.
-- Confirm that the attended and screenshot users cannot read each other's
-  profiles. If session sharing is enabled, verify that only authenticated
-  intended users can join and that stopping sharing revokes access.
-- Verify the reviewed Firefox capture add-on is present under `about:addons`,
-  then capture a controlled long page and confirm the result covers the full
-  page. Inspect that capture output and extension permissions before using it
-  on real attended sites. Repeat after an XPI or Firefox image update.
-- Before any n8n integration, exercise the Developer API with a dedicated
-  non-production identity and verify that screenshot jobs cannot reach the
-  attended profile or UI credentials.
+- The browser UI returns an authentication challenge without credentials and
+  loads only with the intended Basic Auth credential.
+- The VM has only a loopback listener for port 3000. Port 3001, Kasm ports,
+  and remote-desktop ports are not published. Verify this from both the Compose
+  configuration and the VM's listening sockets.
+- The tailnet proxy is reachable from an authorized client and unavailable
+  from unintended LAN or public interfaces. Do not add DNS or proxy ingress
+  before local authentication and app health checks pass.
+- On a controlled synthetic origin, write a test cookie and local-storage
+  value, replace the browser container while retaining the same `/config`
+  mount, and confirm both values remain. Remove the test origin data and
+  disposable profile afterward. Do not use the attended profile's sign-in as
+  test data.
+- Open a controlled tab, close Firefox cleanly, restart it with session restore
+  enabled, and confirm the tab URL reopens. Separately verify this after a VM
+  reboot before documenting reboot recovery as tested. Unsaved forms and page
+  memory do not survive either restart.
+- Confirm the screenshot identity cannot read the attended profile. If session
+  sharing or a capture extension is enabled, verify its permissions and
+  intended audience before using real sites.
 
 ## Updates and recovery
 
-Follow the selected Kasm release's update and rollback instructions. Keep the
-installer, version, checksum source, and verified digest in the ignored local
-handoff so an operator can reproduce the install. Test updates with the
-encrypted data mounted and check both UI login and a disposable browser
-workspace before treating an update as healthy. A container-image rollback may
-not undo changed application state; treat profiles and Kasm configuration as
-user data. Restore them only through the site's approved recovery process.
+Keep the exact image tag and digest, Compose configuration, and recovery steps
+in the ignored local handoff. Update by pinning a reviewed image version and
+digest, then recreate only the browser service. Check UI authentication,
+listener bindings, Firefox version, profile access, and screenshot extension
+after an update. Test updates with the encrypted filesystem mounted. Treat the
+profile as user data; a container rollback does not roll back cookies or
+Firefox state.
 
-If the data disk cannot be unlocked, leave Docker, Kasm, and Caddy stopped and
-verify the disk identity before retrying. Do not initialize or reformat a disk
-that might contain profiles or Kasm state. If the reverse proxy fails, check
-tailnet binding, DNS-only resolution, certificate challenge permissions, Kasm
-upstream proxy configuration, and the local backend listener without widening
-the network exposure.
+If the data disk cannot be unlocked, leave Docker and the browser container
+stopped and verify disk identity before retrying. Do not initialize or reformat
+a disk that may contain profiles. If the reverse proxy fails, check tailnet
+binding, DNS-only resolution, certificate challenge permissions, websocket
+proxying, and the local backend listener without widening network exposure.
+
+Kasm Workspaces persistent profiles, sharing, and Developer API are documented
+in the [Kasm 1.19 profile
+guide](https://docs.kasm.com/docs/how-to/data-storage/persistent-profiles/),
+[reverse-proxy guide](https://docs.kasm.com/docs/1.19.0/how-to/networking/reverse-proxy),
+and [Developer API reference](https://docs.kasm.com/docs/develop/reference/developer-api).

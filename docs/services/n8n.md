@@ -74,6 +74,26 @@ unavailable result without continuing to storage. Keep the Compose override
 beside the base Compose file so the standard update command loads,
 health-checks, and restarts the helper with the rest of the project.
 
+Enable n8n's SSRF protection when workflow nodes can make requests to
+user-controlled destinations:
+
+```text
+N8N_SSRF_PROTECTION_ENABLED=true
+```
+
+If an active workflow must call the internal helper, allow only its exact
+operator-controlled Compose hostname with `N8N_SSRF_ALLOWED_HOSTNAMES`. Avoid
+allowing an entire private IP range. n8n checks hostname allowlists before its
+blocked IP ranges, so an allowed hostname bypasses those IP blocks. Keep the
+exception only while a verified workflow needs it; remove it after all callers
+have migrated and keep SSRF protection enabled. Before retiring the helper,
+verify that no active workflow still references it, remove the exact hostname
+exception and helper service/network in the same planned Compose change, and
+use the service checkpoint/restart and health checks. Retain the rollback
+configuration until n8n is healthy and the removed helper is absent. See n8n's
+[SSRF protection guide](https://docs.n8n.io/deploy/host-n8n/configure-n8n/security/enable-ssrf-protection/)
+and [environment variable reference](https://docs.n8n.io/deploy/host-n8n/configure-n8n/basic-configuration/use-environment-variables/ssrf-protection/).
+
 ## Encryption pattern
 
 For stolen-image protection, attach a separate LUKS data disk and place Docker's

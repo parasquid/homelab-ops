@@ -224,7 +224,7 @@ if [[ ${decoded_size} -ne ${EXPECTED_DECODED_BYTES} ]]; then
   exit 1
 fi
 
-ssh_opts=(-o BatchMode=yes -o "ConnectTimeout=${SSH_CONNECT_TIMEOUT}" -o LogLevel=ERROR)
+ssh_opts=(-o BatchMode=yes -o StrictHostKeyChecking=yes -o "ConnectTimeout=${SSH_CONNECT_TIMEOUT}" -o LogLevel=ERROR)
 target=${VM_USER}@${VM_HOST}
 mapper_path=/dev/mapper/${LUKS_MAPPER}
 

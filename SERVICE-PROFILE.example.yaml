@@ -44,12 +44,19 @@ network:
   lan_ports: []
 
 storage:
+  # These defaults apply to new guest disks regardless of the host pool.
+  # Change disk_allocation to thick only when this service requires it.
+  disk_allocation: sparse
+  # Change guest_filesystem only when this service requires another format.
+  guest_filesystem: ext4
   persistent_paths: []
   additional_disks: []
   host_mounts: []
 
 encryption:
   # Supported in version 1: none | guest-luks-data
+  # guest-luks-data requires the official distribution cryptsetup package;
+  # see RUNBOOK.md section 6 for install, identity, and format safeguards.
   method: none
   mount: null
   unlock: null
