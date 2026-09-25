@@ -17,5 +17,6 @@ VM IDs, credential-item names, workstation paths, secret values, and status
 belong only in the ignored inventory and per-service handoff.
 
 - [n8n](n8n.md)
+- [Persistent browser workspaces](browser-workspaces.md)
 - [Suwayomi](suwayomi.md)
 - [Vaultwarden](vaultwarden.md)
