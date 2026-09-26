@@ -322,8 +322,11 @@ VM's Tailscale IPv4 address. Check for an existing record first. Do not overwrit
 or repurpose an unrelated hostname.
 
 Install Caddy with the Cloudflare DNS provider. Store its zone-scoped API token
-in a root-readable environment file and reference it from the Caddy service.
-Never place the token directly in the Caddyfile.
+in a root-readable mode-0600 secret file on the encrypted data mount. For a
+Compose deployment, grant it to Caddy through a file-backed service secret and
+load it into the Caddy process at runtime; do not place the token in the
+Compose environment, Docker metadata, logs, or Caddyfile. The Caddyfile should
+contain only an environment reference.
 
 The private-site pattern is:
 
@@ -344,8 +347,16 @@ The private-site pattern is:
 ```
 
 Validate the Caddy configuration before reloading it. Confirm that Caddy listens
-on the Tailscale address only, that port 80 is not opened by an automatic redirect,
-and that the certificate validates from a tailnet-connected device.
+on the Tailscale address only, that port 80 is not opened by an automatic
+redirect, and that the certificate validates from a tailnet-connected device.
+If Caddy is containerized and the application listens on the VM's loopback
+interface, use host networking (or an equally narrow, verified path) so the
+proxy can reach that loopback listener. Keep the application bound to loopback;
+do not widen its bind address to make a bridge network work. Disable or bind
+Caddy's admin API to loopback. If HTTP/3 is not needed, configure the HTTPS
+server for HTTP/1.1 and HTTP/2 only so it does not open UDP 443. Inspect TCP and
+UDP listeners after startup and confirm that only the intended Tailscale
+address has the HTTPS listener.
 
 Configure the application with its external HTTPS URL and trusted-proxy setting
 when required. Do not assume every application interprets forwarded headers the

@@ -154,7 +154,17 @@ reference](https://mozilla.github.io/policy-templates/#extensionsettings).
 5. After local health and authentication checks pass, join the VM to its
    authorized tailnet with Tailscale SSH disabled if OpenSSH is the intended
    administration route. Configure HTTPS ingress only on the VM's tailnet
-   address. Keep the DNS record DNS-only and pointed to the tailnet address.
+   address, using a DNS-only `A` record for the tailnet IPv4 address. Check for
+   conflicting DNS records before creating it. Use Caddy DNS-01 with a
+   Cloudflare token scoped to the zone. Keep the token in a mode-0600 file on
+   the encrypted data mount and grant it only to Caddy as a file-backed
+   Compose secret; do not put it in Compose environment metadata or the
+   Caddyfile.
+   If Caddy runs in a container and Firefox remains bound to `127.0.0.1:3000`,
+   use host networking or another verified narrow route to reach that loopback
+   listener. Bind Caddy to the tailnet address only. Disable its admin API or
+   bind it to loopback, and leave HTTP port 80 closed when DNS-01 is used. If
+   HTTP/3 is not required, disable it so Caddy does not open UDP 443.
 6. If a later design needs multi-user workspaces, active session sharing, or
    Kasm's Developer API, evaluate Kasm Workspaces separately. Use its matching
    official installer and checksum, pin the web UI to loopback behind the
@@ -169,6 +179,11 @@ reference](https://mozilla.github.io/policy-templates/#extensionsettings).
 - The VM has only a loopback listener for port 3000. Port 3001, Kasm ports,
   and remote-desktop ports are not published. Verify this from both the Compose
   configuration and the VM's listening sockets.
+- Caddy listens on the VM's tailnet IPv4 address only. Confirm there is no
+  listener on wildcard/LAN addresses, TCP 80, UDP 443 when HTTP/3 is disabled,
+  or the admin API port. The backend remains loopback-only. From a tailnet
+  client, verify the public certificate and both unauthenticated and
+  authenticated responses.
 - The tailnet proxy is reachable from an authorized client and unavailable
   from unintended LAN or public interfaces. Do not add DNS or proxy ingress
   before local authentication and app health checks pass.
