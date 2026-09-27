@@ -321,6 +321,17 @@ Create a DNS-only Cloudflare `A` record for the service hostname pointing to the
 VM's Tailscale IPv4 address. Check for an existing record first. Do not overwrite
 or repurpose an unrelated hostname.
 
+For another private web UI on the same VM, use an auxiliary hostname in the
+`<component>.<service>.<base-domain>` form, such as
+`pages.<service>.<base-domain>`. Check for conflicting A, AAAA, and CNAME
+records, then create a separate DNS-only A record to the same Tailscale IPv4
+address and add a matching Caddy site block. Use the Tailscale ACL to restrict
+HTTPS to the intended operators; a DNS-only record does not provide access
+control. Prefer Caddy's static file server over a new application process when
+the UI can be built as static assets. Give each application its own path prefix
+on a shared page hostname; leave the host root available for a generic index
+or additional services.
+
 Install Caddy with the Cloudflare DNS provider. Store its zone-scoped API token
 in a root-readable mode-0600 secret file on the encrypted data mount. For a
 Compose deployment, grant it to Caddy through a file-backed service secret and

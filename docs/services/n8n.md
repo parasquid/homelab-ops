@@ -52,6 +52,67 @@ Use n8n's current `N8N_WEBHOOK_URL` environment variable for the HTTPS webhook
 base URL presented to tailnet clients. Keep the editor URL and protocol
 settings aligned with the same private HTTPS hostname.
 
+## Private static operator portal
+
+Serve private static pages from the existing Caddy instance on an auxiliary
+hostname such as `pages.<service>.<base-domain>`. Mount each product at its own
+path prefix, such as `/<application>/`, and keep the host root generic so
+future pages can coexist. This needs no additional application process
+unless a concrete server-side requirement cannot be handled by static assets
+and n8n workflows. Check the exact hostname for existing A, AAAA, and CNAME
+records before creating a DNS-only A record to the VM's Tailscale IPv4 address.
+Use the existing private DNS-01 certificate path, bind the site to the Tailscale
+address, and use tailnet ACLs to limit HTTPS access to intended operators. Do
+not add public ingress or portal Basic Auth; the tailnet ACL is the access
+boundary.
+
+Keep the built assets under the encrypted application-data mount and bind them
+into Caddy read-only. Point `root` and `file_server` only at the intended
+static asset directory for each path prefix. Keep Compose files, secrets,
+Caddy state, and other service data out
+of the web root. Render event-supplied text as text and escape it in previews;
+do not inject event HTML into the page.
+
+The browser should call same-origin `/<application>/api/...` routes. Configure one
+explicit Caddy method-and-path route for each implemented portal operation,
+rewriting it to that operation's named production n8n webhook. Proxy only to
+n8n's loopback listener through host networking or another verified narrow
+path. Return 404 for unmatched `/api/*` paths; do not use a catch-all API proxy,
+expose the editor/API through the portal hostname, or place n8n API credentials
+or webhook secrets in browser code.
+
+For each portal proxy route, remove any incoming `X-Portal-Route` value and set
+a fixed proxy-owned marker. Remove `Authorization` from the portal request
+before proxying; the browser must not send backend credentials. Remove
+caller-supplied `X-Portal-Route` on the n8n editor hostname before proxying as
+well, so direct webhook requests cannot forge the portal route. The marker
+distinguishes the configured Caddy route; it is not an operator identity or a
+secret. Keep the n8n port loopback-only and have each portal workflow require
+the marker before processing a request.
+
+Keep reads on GET and mutations on POST. For every mutation, require the exact
+portal `Origin`, `application/json`, and a custom request header; reject absent
+or foreign origins, form-encoded writes, and other methods. Do not enable CORS
+for portal routes. These checks protect the write endpoints from cross-site
+requests; workflows must also validate portal-route provenance, allowed transitions,
+edition and candidate identity, draft revision, and submitted values. Preserve
+Gate 1 selection and Gate 2 final approval before publication.
+
+Before activating the auxiliary hostname, validate the Compose and Caddy
+configuration through the normal service entrypoint when it loads DNS
+credentials from a file. Running `caddy validate` directly without that
+entrypoint can report a missing token even when the service has it. Keep the
+validation container isolated from external traffic until the candidate
+configuration passes, then test from an allowed tailnet client. Verify the portal loads,
+only its explicit API routes reach their matching workflows, rejected requests
+cannot change state, and direct webhook calls through the editor hostname fail
+even when the caller supplies the marker. Check the certificate,
+Tailscale-only listener, tailnet ACL, and absence of public or unintended LAN
+access. Save the previous Caddyfile and Compose files on the encrypted mount for
+rollback. If a change fails, restore those files and reload or recreate only
+Caddy; preserve n8n and its data. Remove a newly created DNS record only when
+explicitly authorized, and never overwrite or remove a pre-existing record.
+
 ### Restricted URL-fetch helper
 
 When a workflow must fetch user-supplied URLs, run the fetcher as a separate
