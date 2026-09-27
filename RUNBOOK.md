@@ -328,6 +328,18 @@ load it into the Caddy process at runtime; do not place the token in the
 Compose environment, Docker metadata, logs, or Caddyfile. The Caddyfile should
 contain only an environment reference.
 
+Before copying a Cloudflare API token to a managed VM, check the private
+inventory and agent handoff for the exact token source, intended service,
+destination host and path, and any standing operator authorization. Confirm
+that the destination data volume is mounted and encrypted, that the target is
+restricted to the service owner with mode 0600, and that the token will be used
+only for the approved Cloudflare API or DNS-01 operation. Transfer over a
+host-key-verified encrypted connection; verify file equality and permissions
+without displaying token bytes. Stop if the purpose, destination, encryption,
+or file protection cannot be verified. Ask for specific approval only when no
+standing authorization covers the verified operation. Keep site-specific
+authorization terms in the ignored local instructions, not this public reference.
+
 The private-site pattern is:
 
 ```caddyfile
