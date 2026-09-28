@@ -24,6 +24,13 @@ being diagnosed. Cloudflare is migrating its permission model; if the token
 interface only offers product-level scope, record that scope accurately rather
 than describing it as Worker-specific.
 
+Editing a build trigger or starting a new build through the Builds API requires
+write access to Workers Builds. Grant `Workers CI Write` or its current
+equivalent for that task, then remove unneeded access when the task is done.
+Check the token with the user-token verification endpoint before using the
+Builds API; an account token can be valid for other Cloudflare APIs yet be
+rejected by Builds. Keep the token in a protected store throughout the call.
+
 Manual `wrangler deploy` of an existing Worker needs the Workers `Editor` role
 for that Worker. If the deployment also changes a Route or Custom Domain, add
 `Workers Routes Write` for each affected zone. Creating a Worker requires
@@ -51,7 +58,10 @@ secret values from build logs into a handoff.
    - For dependency or build failures, confirm the configured root directory,
      Hugo version, and build command. Workers Builds can use the `HUGO_VERSION`
      build variable; defaults can change, so pin a version when the repository
-     requires a specific one.
+     requires a specific one. A Hugo template error such as `function "hugo"
+     not defined` can mean the build selected an older Hugo release. Compare
+     the version printed in the build log with the repository's pinned version
+     before changing the template.
    - For deploy failures, confirm that the Wrangler config is present in the
      configured root, its Worker name matches the existing Worker, and its
      assets settings point at the output produced by Hugo. If logs report a
@@ -65,7 +75,14 @@ secret values from build logs into a handoff.
    production build with the version required by the repository. A common Hugo
    command is `hugo --minify`; treat it as an example and follow the site's
    documented command if it differs.
-5. Retry from the Cloudflare build history only after fixing the cause. A
+5. If the build trigger pins an outdated Hugo release, set its `HUGO_VERSION`
+   environment variable to the version required by the repository. Use the
+   production trigger's environment-variable update endpoint or the dashboard,
+   then read the trigger back to confirm the value. Preserve other variables
+   and their secrecy settings. The build image documents the version syntax;
+   use the `extended_` prefix when the site requires Hugo Extended.
+6. Start a fresh build from the production trigger or Cloudflare build history
+   only after fixing the cause. Check its build and deploy stages. A
    successful build status confirms the build job completed; it does not prove
    that the intended public pages and assets are correct.
 
