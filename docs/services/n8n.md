@@ -113,6 +113,44 @@ rollback. If a change fails, restore those files and reload or recreate only
 Caddy; preserve n8n and its data. Remove a newly created DNS record only when
 explicitly authorized, and never overwrite or remove a pre-existing record.
 
+## Private test inbox for workflow email
+
+For email workflow testing, use a dedicated SMTP capture service such as
+[Mailpit](https://mailpit.axllent.org/docs/install/docker/) in the n8n Compose
+project. Keep it separate from an account service's inbox so test drafts cannot
+mix with verification or recovery mail. Capture mail only; leave SMTP relay and
+forwarding unset. This gives workflows an end-to-end SMTP target without sending
+to external recipients.
+
+Put Mailpit's database in a persistent volume under the encrypted Docker data
+root. Set `MP_DATABASE` to the mounted database path and bound message-size and
+retention limits. Publish only the web UI to the VM's loopback address; do not
+publish SMTP port 1025. n8n reaches SMTP by the Compose service name on the
+internal project network. Create an n8n SMTP credential for the Compose hostname and port
+1025 with SSL/TLS and STARTTLS disabled and no username or password; reference
+its credential ID in the email workflow, not connection settings embedded in
+workflow exports. Add a `/readyz` health check and bounded container logs.
+When the UI has no separate login, set `MP_ALLOWED_HOSTS` to its intended
+hostname and keep the service reachable only through the tailnet-bound HTTPS
+proxy. Do not enable Mailpit's internal HTTP request option for email preview
+checks.
+
+Check the proposed hostname for A, AAAA, and CNAME conflicts before creating
+a DNS-only A record to the VM's Tailscale address. Bind the Caddy site to that
+address and use the existing DNS-01 secret; proxy to the loopback UI port.
+Validate Compose and the Caddy candidate through the secret-loading entrypoint
+before cutover. Preserve rollback copies on the encrypted mount, then recreate
+only the new service and Caddy. Avoid restarting n8n and PostgreSQL for an inbox
+addition.
+
+Verify a trusted certificate, UI response without Basic Auth, and a captured
+message sent from the n8n Compose network to a reserved test address. Confirm
+that SMTP has no published host port, the UI has no LAN or public listener, the
+Mailpit database is on the encrypted mount, and the existing n8n stack remains
+healthy. Test the Host allowlist against an unlisted hostname. Record the actual
+hostname, image version, storage volume, rollback paths, and check results in
+the ignored local inventory and service handoff.
+
 ### Restricted URL-fetch helper
 
 When a workflow must fetch user-supplied URLs, run the fetcher as a separate
