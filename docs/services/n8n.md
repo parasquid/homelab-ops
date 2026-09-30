@@ -70,8 +70,10 @@ Keep the built assets under the encrypted application-data mount and bind them
 into Caddy read-only. Point `root` and `file_server` only at the intended
 static asset directory for each path prefix. Keep Compose files, secrets,
 Caddy state, and other service data out
-of the web root. Render event-supplied text as text and escape it in previews;
-do not inject event HTML into the page.
+of the web root. Render event-supplied text through text nodes or escaped HTML.
+If source formatting is needed, convert it to a bounded subset and render only
+explicitly allowed elements and safe URLs. Check repeated conversion and literal
+punctuation as well as hostile tags and links. Do not inject raw source HTML.
 
 The browser should call same-origin `/<application>/api/...` routes. Configure one
 explicit Caddy method-and-path route for each implemented portal operation,
