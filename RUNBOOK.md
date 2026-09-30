@@ -256,6 +256,18 @@ Create `/opt/<service>` and give the VM administrator appropriate ownership.
 For encrypted profiles, configure Docker's data root and containerd's persistent
 root on the mounted encrypted filesystem before starting either service.
 
+With Docker's containerd image store, Docker's `data-root` does not move image
+contents or container snapshots: containerd uses its own persistent `root`,
+which defaults to `/var/lib/containerd`. Configure that root separately in
+`/etc/containerd/config.toml` and verify both effective storage paths with
+mount checks. Monitor free blocks and inodes on both filesystems; extracted
+image layers can consume many inodes as well as disk space. See the
+[Docker data-directory guide](https://docs.docker.com/engine/daemon/#daemon-data-directory)
+and [containerd configuration reference](https://containerd.io/docs/main/man/containerd-config.toml.5/).
+For an existing installation, plan a stopped-service migration and preserve
+its old store and configuration until health and persistence checks pass.
+Never remove raw snapshot directories as a capacity fix.
+
 The Compose deployment should:
 
 - Use an upstream-supported release channel.
