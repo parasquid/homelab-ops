@@ -61,6 +61,8 @@ of scope until a real deployment needs them.
   immutable-Linux and per-user systemd setup for the standalone Codex CLI.
 - [Cloudflare Workers Builds](docs/cloudflare-workers-builds.md) covers
   reusable Hugo build diagnosis, authorized deployment, and live verification.
+- [Static blog retirement](docs/static-blog-retirement.md) covers article and
+  media mapping, redirect previews, hostname cutover, and recovery.
 
 The notes are build guides: they explain reference choices, their tradeoffs,
 setup steps, and acceptance checks. They do not report a deployment's chosen
