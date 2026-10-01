@@ -47,11 +47,30 @@ change is not overwritten. Use only credentials approved for that account and
 zone, with the write permissions needed for the selected operation. Prepare
 the reverse operation before changing production routing.
 
+A Worker route on an existing proxied hostname can preserve its DNS record while
+serving static assets. Consider this when replacing the record is undesirable.
+Scope the route to the retired hostname and verify that every request, including
+unknown paths, receives the redirect project's response. Confirm routing still
+works after the old application is stopped. Keep the route in the project's
+publishing configuration so a later deployment does not remove it.
+
+An existing tunnel CNAME may prevent Custom Domain attachment even when the
+publisher supports replacing ordinary DNS records. Inspect the actual domain,
+DNS, and deployed version after a failed publish; earlier steps may have
+succeeded. When replacement requires removing the CNAME first, prepare a guarded
+removal and attachment using the exact hostname and record. This can cause a
+brief interruption. If attachment fails, inspect live state before restoring
+the saved record; do not overwrite a concurrent change or repeat an ambiguous
+request.
+
 After cutover, verify normal public URLs without relying solely on cache-busting
 parameters. If old pages remain cached, diagnose the affected URLs and use a
 targeted purge. Confirm all redirects and media destinations before stopping
 the old application. Stop only its identified container; preserve its volumes,
 shared databases, and shared tunnel services for recovery.
+Check the container restart policy and the host's application autostart settings
+before stopping it. Ensure the retired application will remain stopped after a
+daemon or host restart, and record its previous settings for recovery.
 
 ## Record and maintain
 
