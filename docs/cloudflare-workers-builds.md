@@ -2,7 +2,7 @@
 
 This guide covers routine diagnosis and deployment checks for a Hugo site
 connected to Cloudflare Workers Builds. Use the repository's own instructions
-for its pinned tool versions, Wrangler configuration, production URL, and
+for its pinned tool versions, deployment configuration, production URL, and
 deployment authorization. Record results for a real site only in its ignored
 inventory and private handoff.
 
@@ -44,6 +44,13 @@ values in source files, chat, command history, process arguments, logs, or
 tracked documentation. Keep any Cloudflare-managed build token distinct from
 an API token used to read build logs or authenticate Wrangler. Do not copy
 secret values from build logs into a handoff.
+
+If a credential client's default cache is read-only, keep its protection intact.
+Create a temporary owner-only cache on disk-backed storage, configure the
+expected vault server, and let the approved helper authenticate normally.
+For the Bitwarden CLI, select that directory through `BITWARDENCLI_APPDATA_DIR`.
+Keep passwords and unlock material in the existing protected mechanism. Remove
+the exact temporary cache when the operation ends, including failure paths.
 
 ## Diagnose a failed GitHub check
 
@@ -107,6 +114,97 @@ from the configured project root with the approved credential already
 available through the protected environment. Review the command target and
 deployment result before treating the publish as complete.
 
+## Migrate a static Hugo Worker to `cf`
+
+Pin `cf` and its Vite dependencies in the repository lockfile, and commit the
+reviewed `cloudflare.config.ts` and Vite configuration before using them in CI.
+Use a supported Node release. Build Hugo first: `cf` packages the generated
+static assets but does not run the site's Hugo command for you.
+
+For a project whose `build:cloudflare` script runs `cf build`, configure:
+
+```text
+Build command:  npm ci && hugo --minify && npm run build:cloudflare
+Deploy command: npx cf deploy --prebuilt --mode production
+```
+
+Pin the repository's required Hugo version through `HUGO_VERSION`, and set
+`CLOUDFLARE_ACCOUNT_ID` explicitly. Keep the Cloudflare-managed build token in
+the Builds configuration. A separate API credential used to edit the trigger
+does not replace that build token.
+
+Stage the change on a nonproduction branch first. To retain inactive-version
+review, use `npx cf workers versions create --prebuilt --mode production` as
+that branch's deploy command. A named `cf previews deploy` deployment uses a
+separate preview build; omit production domains and endpoint settings from the
+configuration when `isPreview` is true. Match the prebuilt deployment mode to
+the mode recorded by the build.
+
+Use `cf previews deploy` for that preview workflow; choosing a Vite mode named
+`preview` alone does not enable the CLI's preview build context.
+
+For a Worker that redirects aliases before serving Hugo assets, keep its
+entrypoint and redirect logic. Declare the asset binding with
+`worker.env.ASSETS: bindings.assets()` and retain `worker.assets.runWorkerFirst`
+when the previous configuration ran the Worker before the asset service.
+Otherwise an existing asset can bypass a redirect. Preserve the HTML and
+missing-page handling settings, and verify alias requests with a path and
+query as well as the homepage.
+
+Give a separate redirect Worker its own project directory, package manifest,
+lockfile, Vite configuration, and `cloudflare.config.ts`. Build and deploy from
+that directory so its output cannot be confused with the main site's output.
+Declare only its intended custom domain and preserve whether workers.dev and
+version preview endpoints are enabled. Keep a manually deployed redirect on
+its existing publishing path unless a separate CI connection is chosen.
+
+Read endpoint settings from the live Worker as well as its source config.
+Missing fields in an older config do not establish whether workers.dev or
+version previews are enabled. Preserve the observed booleans in the production
+cf config. A named preview also needs an enabled preview host; a successful
+upload with empty URL arrays does not establish that its output is reachable.
+Keep disabled endpoint settings intact. Verify the packaged runtime locally,
+then confirm that the inactive-version build succeeded for the exact source
+commit. Record its version ID when the build response or logs provide it. A local
+runtime check establishes packaged behavior; it does not establish remote
+deployment health, which must be checked on the canonical URLs after publishing.
+An inactive-version build can succeed without a publicly accessible version URL.
+
+Before changing the production trigger, compare the packaged assets with the
+Hugo output, validate the production build with a prebuilt dry run, and verify
+the exact candidate through the branch build and runtime checks. Use a live
+preview when the Worker has an enabled review endpoint. Preserve
+separate redirect Workers and their configuration until they are migrated and
+verified independently. Record the previous active Worker version and trigger
+commands in the ignored handoff so rollback covers both traffic and future
+builds. Remove the main Wrangler configuration only with the corresponding
+CI command change; an old trigger cannot deploy a repository that has removed
+the configuration it needs.
+
+If a candidate cannot be pushed, restore the prior branch publisher while the
+remote still has the old configuration. Preserve the required Hugo version and
+other build settings. A wildcard branch trigger affects every matching branch;
+bring active branches forward to the new configuration before using that
+publisher on them.
+
+Check both production and nonproduction Hugo version settings; they can
+differ. After the branch build creates an inactive version, confirm that the
+active production deployment is unchanged. Switch the production trigger only
+after reviewing the staged output, then verify that production serves
+the intended source commit. If a build fails while fetching the repository
+before any build command runs, diagnose that stage and retry the same full
+commit rather than changing the rendering or deployment configuration.
+
+If a local and CI render differ, locate every difference before accepting
+parity. For an environment-dependent date format, check that the instant and
+offset are equivalent and that the rest of the rendered document is identical.
+Compare the final production response with the verified CI output as well.
+
+For a theme that shuffles recommendations, validate the selected links and card
+metadata against published source pages, and compare the rest of each document
+exactly. Compare production with its own active version without removing those
+randomized regions: both endpoints should serve the same rendered assets.
+
 ## Verify the live site
 
 After either a Workers Builds deployment or a manual deploy, inspect the actual
@@ -131,3 +229,7 @@ tracked documentation as reusable procedure.
 - [Get Workers build logs API](https://developers.cloudflare.com/api/resources/workers_builds/subresources/builds/subresources/logs/methods/get/)
 - [Workers roles and permissions](https://developers.cloudflare.com/workers/authorization/workers/)
 - [Wrangler deploy command](https://developers.cloudflare.com/workers/wrangler/commands/workers/)
+- [Cloudflare CLI CI and automation](https://developers.cloudflare.com/cf/ci/)
+- [Cloudflare CLI project configuration](https://developers.cloudflare.com/cf/projects/cloudflare-config/)
+- [Cloudflare Vite plugin static assets](https://developers.cloudflare.com/workers/vite-plugin/reference/static-assets/)
+- [Preview hosts and endpoint settings](https://developers.cloudflare.com/workers/previews/custom-domains/)
