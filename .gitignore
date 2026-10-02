@@ -4,6 +4,7 @@
 .envrc
 AGENTS.local.md
 inventory.local.yaml
+.codex/config.toml
 .publication-denylist
 *.local.yaml
 *.local.yml
