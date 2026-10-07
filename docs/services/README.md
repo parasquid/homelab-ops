@@ -18,5 +18,6 @@ belong only in the ignored inventory and per-service handoff.
 
 - [n8n](n8n.md)
 - [Persistent browser workspaces](browser-workspaces.md)
+- [Seafile](seafile.md)
 - [Suwayomi](suwayomi.md)
 - [Vaultwarden](vaultwarden.md)

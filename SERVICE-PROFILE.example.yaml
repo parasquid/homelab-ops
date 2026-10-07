@@ -60,7 +60,12 @@ encryption:
   method: none
   mount: null
   unlock: null
+  # external-file | vaultwarden; this names a provider, never a key value.
+  key_provider: null
+  # Filename under LUKS_KEY_DIRECTORY or exact Vaultwarden item name.
   key_source: null
+  # Required with Vaultwarden; pin one exact collection and item.
+  key_collection: null
   recovery_keyslot: false
   header_backup: false
   unattended_boot: true

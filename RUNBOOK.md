@@ -184,9 +184,19 @@ data disk. Revoke the Tailscale device immediately if an OS image is suspected
 to have been copied.
 
 Keep the per-service automation key outside the repository and outside the VM.
-The local `.env` contains only `LUKS_KEY_DIRECTORY`. Generate a unique,
-high-entropy key file for each service, protect it with mode `0600`, and keep a
-separate recovery copy.
+The simple default is a unique, high-entropy key file on the protected operator
+host, with mode `0600`; `.env` contains only `LUKS_KEY_DIRECTORY`. A profile may
+instead select Vaultwarden for the automation key: store a unique 64-byte key
+as a base64 login-item password in the scoped collection, and have the local
+helper pin the Vaultwarden server, collection, and exact item. Decode the key
+in memory, validate its byte length, and pass it to `cryptsetup` over standard
+input. Never put the decoded key in `.env`, command arguments, logs, the guest,
+or the repository.
+
+Keep an independent human recovery passphrase outside Vaultwarden, protected
+and available before Vaultwarden can be reached. Do not rely on Vaultwarden to
+unlock its own encrypted storage or as the only credential path to a system
+that must be available before Vaultwarden.
 
 Before formatting, resolve the added disk through a stable `/dev/disk/by-id`
 path and verify its serial, capacity, VM attachment, and lack of existing
@@ -238,11 +248,19 @@ they cannot start before the encrypted filesystem is mounted. Caddy's API
 token belongs in a protected environment file on the encrypted disk, while the
 Caddyfile itself contains only an environment reference.
 
-Add a separate human recovery passphrase in another LUKS keyslot and store it
-in a password manager. Create a LUKS header backup after configuring the
-keyslots, store it outside the VM and its Proxmox storage, and protect it as
-sensitive recovery material. Refresh the header backup whenever keyslots
-change.
+Add a separate human recovery passphrase in another LUKS keyslot and retain it
+in a protected recovery location independent of the automation-key provider.
+When changing keyslots, authorize the addition with an existing valid
+credential, keep every existing recovery slot, and test the new and recovery
+credentials with `cryptsetup open --test-passphrase`. Create a LUKS header
+backup after configuring the keyslots, store it outside the VM and its Proxmox
+storage, and protect it as sensitive recovery material. Refresh the header
+backup whenever keyslots change.
+
+Argon2 key derivation can consume substantial guest memory. Check memory
+headroom before keyslot changes, run only one add or passphrase test at a time,
+and verify application health afterward. Concurrent key derivations can cause
+the guest to swap heavily or invoke the OOM killer.
 
 With remote-script unlock, unattended application recovery after a VM reboot is
 deliberately disabled. The VM and Tailscale start, but Docker, Caddy, and the
