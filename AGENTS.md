@@ -57,6 +57,25 @@ either documentation layer.
   It is not an SSH authentication mechanism.
 - Version 1 supports VMs only. Do not silently substitute an LXC container.
 
+## SSH execution environment
+
+- For operator-requested SSH access to remote systems, use the session's
+  permitted outside-sandbox execution route first. This repository is used to
+  access other systems; a sandbox-only SSH failure is not evidence that the
+  remote host is inaccessible.
+- If OpenSSH reports bad ownership or permissions on a system SSH configuration
+  file inside the sandbox, do not change that file. Retry the already-authorized
+  SSH operation outside the sandbox when the current session provides and
+  permits that route.
+- If outside-sandbox execution is unavailable or disallowed, inspect
+  `AGENTS.local.md` and the target's ignored handoff for an approved route
+  before considering a direct connection with SSH configuration disabled.
+- Use a direct `ssh -F /dev/null` fallback only when the target is reachable
+  without the system configuration and its host key is already verified. Keep
+  strict host-key checking and batch mode enabled, and supply any approved
+  identity or connection options that were configured for the target. Never
+  accept an unverified host key or weaken host-key checking.
+
 ## Before changing anything
 
 - Read `RUNBOOK.md`, the selected service profile, and the relevant service
