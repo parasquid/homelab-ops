@@ -59,6 +59,9 @@ of scope until a real deployment needs them.
   manager with internal Mailpit capture, guest LUKS, and a locked-boot handoff.
 - [Codex Remote Control](docs/codex-remote-control.md) documents a reusable
   immutable-Linux and per-user systemd setup for the standalone Codex CLI.
+- [Claude Code Remote Control](docs/claude-remote-control.md) covers making
+  a workstation a Remote Control host with a supervised per-user systemd unit,
+  plus its update, verification, and failure-mode checks.
 - [Cloudflare Workers Builds](docs/cloudflare-workers-builds.md) covers
   reusable Hugo build diagnosis, authorized deployment, and live verification.
 - [Static blog retirement](docs/static-blog-retirement.md) covers article and
