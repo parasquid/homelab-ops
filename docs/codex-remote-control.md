@@ -43,6 +43,12 @@ release-managed directory, for example:
 %h/.local/bin/codex -> %h/.codex/packages/standalone/current/bin/codex
 ```
 
+If a package manager owns the installation, maintain it through that manager
+and point the service at its stable executable path. Keep copied migration
+binaries as temporary staging rather than silently mixing manual files into
+managed packages. Verify the chosen executable's command surface after an
+update and preserve a usable previous release until acceptance checks pass.
+
 The app-server state is normally under `%h/.codex`. Protect the state and
 control directories with mode `0700`; protect sockets and logs so only the
 owning user can access them. Follow the installed release's documented modes
@@ -67,6 +73,34 @@ If the installed app-server release requires a remote-control setting, use its
 supported configuration path and verify that the setting is the only intended
 change. Do not copy a global `config.toml`, MCP endpoint, token, or session
 data into the service unit.
+
+When moving configuration and history to another host while keeping the source
+running, establish an independent destination sign-in before starting its
+service. Archive copied credentials separately from active state. Sharing a
+rotating login cache between machines can invalidate a still-running source
+session; OpenAI recommends a separate cache for each machine or serialized
+execution stream in its [account authentication guidance](https://learn.chatgpt.com/docs/auth/ci-cd-auth).
+Keep source runtime registrations, pending work, and machine-specific sockets
+out of the destination's active state. Check authentication and fresh remote
+registration separately from history integrity and unit enablement.
+
+Before resuming migrated history, verify that each recorded working directory
+identifies the intended destination repository. A compatibility symlink for a
+project root does not resolve collisions between individual repositories. If
+both hosts have different checkouts at the same relative path, preserve both
+and review the active history's path mapping before resuming work. Keep the
+original history archive unchanged; avoid blanket replacements in conversation
+text or unrelated configuration.
+
+If MCP clients require a separate credential-provider user service, declare
+both `Requires=` and `After=` for that provider. A `Type=simple` provider can
+be considered started before its listener is ready. Gate its startup with a
+bounded readiness check, such as an `ExecStartPost` helper that verifies socket
+ownership and protection, connects locally, and closes without requesting a
+credential. Allow enough startup time for initial credential retrieval and
+make readiness failure prevent dependent clients from starting. Check this
+ordering during service activation and record actual reboot verification
+separately.
 
 ## User service
 
@@ -154,14 +188,14 @@ namespace with separate authorization.
 
 ## Updates and recovery
 
-Use the standalone installer's supported update path. Before switching a
+Use the owning installer's or package manager's supported update path. Before switching a
 release, record the current version, keep the previous release available, and
 verify that the stable user-facing path resolves to the intended executable.
 Then restart and repeat the focused checks:
 
 ```bash
 systemctl --user stop codex-remote-control.service
-# Update through the official standalone release mechanism.
+# Update through the mechanism that owns this installation.
 systemctl --user daemon-reload
 systemctl --user start codex-remote-control.service
 codex --version
