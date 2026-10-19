@@ -69,7 +69,8 @@ deliberately locked until remote unlock mounts the disk and starts services;
 verify both states. This protects a copied data disk, not an unlocked guest
 from its hypervisor administrator.
 
-Procedure: [guest LUKS](../RUNBOOK.md#6-configure-optional-guest-luks-encryption).
+Procedures: [guest LUKS](../RUNBOOK.md#6-configure-optional-guest-luks-encryption)
+and [existing-volume key enrollment](../RUNBOOK.md#add-an-automation-key-to-an-existing-luks-volume).
 
 ## Vaultwarden and Bitwarden CLI
 

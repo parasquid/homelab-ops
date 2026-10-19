@@ -292,28 +292,58 @@ Create the profile's guest filesystem (ext4 by default) and mount the mapper at
 the profile's mount point. Place Docker's data root, containerd's persistent
 root, `/opt/<service>`, application secrets, and all persistent bind mounts on
 this filesystem. Configure Docker, containerd, Caddy, and the application so
-they cannot start before the encrypted filesystem is mounted. Caddy's API
-token belongs in a protected environment file on the encrypted disk, while the
-Caddyfile itself contains only an environment reference.
+they cannot start before the encrypted filesystem is mounted. Place Caddy's
+protected token file on this filesystem and use the runtime file-loading
+pattern in [private DNS and HTTPS](#9-configure-private-dns-and-https).
 
-Add a separate human recovery passphrase in another LUKS keyslot and retain it
-in a protected recovery location independent of the automation-key provider.
-When changing keyslots, authorize the addition with an existing valid
-credential, keep every existing recovery slot, and test the new and recovery
-credentials with `cryptsetup open --test-passphrase`. Create a LUKS header
-backup after configuring the keyslots, store it outside the VM and its Proxmox
-storage, and protect it as sensitive recovery material. Refresh the header
-backup whenever keyslots change.
-
-Argon2 key derivation can consume substantial guest memory. Check memory
-headroom before keyslot changes, run only one add or passphrase test at a time,
-and verify application health afterward. Concurrent key derivations can cause
-the guest to swap heavily or invoke the OOM killer.
+Keep automation and human recovery credentials in separate keyslots. Use the
+[existing-volume enrollment procedure](#add-an-automation-key-to-an-existing-luks-volume)
+to add a missing credential and verify both paths before accepting the deployment.
 
 With remote-script unlock, unattended application recovery after a VM reboot is
 deliberately disabled. The VM and Tailscale start, but Docker, Caddy, and the
 application remain stopped until the data disk is unlocked, mounted, and the
 services are started. Test both the locked and unlocked boot states.
+
+### Add an automation key to an existing LUKS volume
+
+An existing encrypted volume can gain an independent automation credential
+without formatting or re-encrypting its data. Preserve its working recovery
+passphrase and existing keyslots. Slot numbers are deployment choices; record
+the actual assignments locally instead of assuming fixed numbers.
+
+1. Bind the exact VM, stable device identifier, LUKS UUID, and current keyslots.
+   Verify an existing unlock credential against that header before changing it.
+   Administrative SSH or guest-agent access alone does not satisfy this
+   procedure's credential prerequisite. Keep independent recovery available.
+2. Save a protected header copy outside the VM and its Proxmox storage before
+   enrollment. Check available guest memory and run only one key derivation at
+   a time; Argon2 can consume enough memory to disrupt running applications.
+3. Generate a unique service automation key, for example 64 random bytes.
+   Store it base64-encoded in the exact scoped Vaultwarden item with its expected
+   decoded length. Follow [credential retrieval](#retrieve-a-service-credential)
+   and verify the stored value by an in-memory readback. Never reuse another
+   service's key.
+4. Add the decoded key to an unused slot with `cryptsetup luksAddKey`, authorized
+   by the verified existing credential. Supply both secrets through protected
+   input streams or in-memory file descriptors, without writing them to the
+   guest or placing their values in arguments. Preserve existing slots; use
+   the installed version's [key-enrollment options](https://manpages.debian.org/trixie/cryptsetup-bin/cryptsetup-luksAddKey.8.en.html)
+   to select the intended new slot explicitly. After an interruption, inspect
+   the header and test the stored candidate before retrying enrollment; preserve
+   the existing vault key and resolve whether its slot was already added.
+5. Retrieve the automation key from its vault item and test that specific slot
+   with `cryptsetup open --test-passphrase`. Test the retained recovery credential
+   separately, refresh the off-VM header copy, and verify application health.
+   Record slot IDs, provider references, header location, and checks privately.
+
+A keyslot provides another way to unlock the same volume; it does not provide
+a pre-boot network path. If the OS root is encrypted, normal SSH, Tailscale, and
+the guest agent become available only after root unlock. Establish a separate
+pre-boot recovery route or migrate to the bootable-OS/separate-data-disk design
+before relying on remote unlock. Verify a real locked boot only after the
+recovery route is ready. Never remove an old key or recovery copy without
+explicit authorization.
 
 ### Grow existing guest storage
 
