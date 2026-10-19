@@ -427,18 +427,22 @@ The default policy tracks the application's stable release channel and updates
 daily at 03:00 local time. A preview channel must be named explicitly in the
 service profile.
 
-The updater should run from the application directory and perform the equivalent
-of:
+Select the automatically maintained services in the profile. Pull and recreate
+that explicit service set, including version-coupled companions, while keeping
+database, extension, and other compatibility-changing maintenance separate.
+Preserve the Compose project, persistent mounts, and volume identities; do not
+remove unrelated services as part of an update.
 
-```bash
-docker compose pull
-docker compose up -d --remove-orphans
-```
-
-Wrap this in a non-overlapping cron job or systemd timer. Retain bounded logs,
-first verify that any encrypted data mount is present, wait for the defined
-health check, and report failures. Do not prune the previous images until the
-new deployment is healthy. When a deployment has no backup, record that risk
+Wrap the updater in a non-overlapping cron job or systemd timer. Before pulling
+or changing containers, verify the expected filesystem UUID and encrypted-mount
+identity for application configuration, persistent data, Docker, and containerd.
+Fail closed when a required mount is absent or wrong. Retain bounded logs on
+success and failure, wait for every selected service's defined health check,
+compare the running images with the pulled images, and check the application's
+reported version. Make failures observable through the scheduler's failed state
+or the profile's selected reporting path. Do not prune previous images until
+acceptance or automatically downgrade after a failure: an older image cannot
+reverse a state migration. When a deployment has no backup, record that risk
 explicitly before enabling automatic updates.
 
 If the application directory is a symlink into the encrypted mount, run the
@@ -446,6 +450,12 @@ updater from its resolved physical directory or pass an explicit Compose
 project directory. Compose resolves relative secret files, project names, and
 named volumes from that directory; invoking it through the symlink can create
 a parallel project with empty volumes or fail to find the secret file.
+
+Test the actual scheduled entrypoint manually before enabling the schedule.
+Verify that an absent or mismatched mount blocks mutation and a held lock
+prevents overlap. An update test may correctly be a no-op when the selected
+images are already current; still verify the running image and health checks.
+Route manual maintenance through the same guard and lock.
 
 Operating-system security updates are independent of container updates. Enable
 the distribution's unattended security updates; handle distribution releases

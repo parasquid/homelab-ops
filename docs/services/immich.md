@@ -66,6 +66,21 @@ PostgreSQL-major, and database-extension migrations separately. Check mobile
 client compatibility before a server-major upgrade. Follow the upstream
 [upgrade procedure](https://docs.immich.app/install/upgrading/).
 
+Set `IMMICH_VERSION` to the selected stable major tag, such as `v3`, for both
+server and machine learning. The guarded job should pull and recreate those
+two services together using the release's actual service names:
+
+```bash
+docker compose pull immich-server immich-machine-learning
+docker compose up -d --no-deps immich-server immich-machine-learning
+```
+
+Keep their database and cache dependencies running on compatible, explicitly
+selected images. Review release notes for required companion-image or Compose
+changes before enabling a release line. Verify both running image identities,
+their container health, the server version, and database access after the job;
+the public ping endpoint alone only proves HTTP liveness.
+
 Immich does not support downgrading. Retained images are therefore not a
 migration rollback. Establish an existing instance's exact versions, database
 extensions, and persistent mounts before applying a release definition or
