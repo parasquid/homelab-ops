@@ -1,5 +1,9 @@
 # Workspace browser tool
 
+This guide implements the [shared tooling standards](standards.md#shared-tools-and-acceptance)
+for Playwright MCP. It owns runtime registration, browser-store selection,
+caller-state settings, and tool-specific acceptance checks.
+
 Reuse an existing host-wide Playwright MCP runtime when agents need rendered-page
 inspection, screenshots, or browser interaction across tasks. Share the pinned
 runtime and Playwright's default browser store across tools and projects. Keep

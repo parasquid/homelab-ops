@@ -28,9 +28,9 @@ deferred, or chose in `inventory.local.yaml`, `AGENTS.local.md`, and ignored
 per-service handoffs. A public design can state a default or optional choice;
 the local profile and handoff record which choice was made here.
 
-Before any task, read this file and then read `AGENTS.local.md` and
-`inventory.local.yaml` when those ignored files are present. Read `RUNBOOK.md`,
-the selected service profile, and the matching page under `docs/services/`
+Before any task, read this file and `docs/standards.md`. Then read
+`AGENTS.local.md` and `inventory.local.yaml` when those ignored files are present.
+Read `RUNBOOK.md`, the selected service profile, and the matching page under `docs/services/`
 before infrastructure work. The local files hold deployment-specific facts and
 operator handoff; do not copy their live values into tracked files.
 
@@ -55,6 +55,12 @@ either documentation layer.
   passwordless sudo.
 - Use the QEMU Guest Agent for Proxmox-side provisioning, status, and recovery.
   It is not an SSH authentication mechanism.
+- When a managed VM rejects its administrator's approved SSH key, check the
+  authenticated Proxmox management route and use the runbook's guest-agent key
+  recovery procedure when the requested work already authorizes that key and
+  account. A failed guest SSH login does not prove that Proxmox recovery is
+  unavailable. Preserve existing authorized keys and verify strict SSH login
+  afterward.
 - Version 1 supports VMs only. Do not silently substitute an LXC container.
 
 ## SSH execution environment
@@ -112,28 +118,12 @@ either documentation layer.
 
 ## Deployment defaults
 
-- Download operating-system images from official sources and verify their
-  published checksum before importing them.
-- Enable VM autostart and the QEMU Guest Agent.
-- Create `VM_ADMIN_USER` with a locked password and passwordless sudo through
-  cloud-init. Authenticate to OpenSSH with an approved key over the tailnet;
-  leave Tailscale SSH disabled unless the operator explicitly requests it.
-- Place application configuration under `/opt/<service>`.
-- Bind private application ports to loopback. Keep databases and internal
-  brokers on Compose-only networks.
-- Use bounded container logs, persistent data volumes, health checks, and a
-  restart policy.
-- Default to DNS-only Cloudflare records that resolve to a Tailscale address.
-- Bind Caddy to the Tailscale address and obtain certificates with DNS
-  validation.
-- Do not enable Cloudflare proxying, Tailscale Funnel, router forwarding, or
-  public ingress unless the service profile explicitly requires it.
-- Automatically update application containers from the selected stable channel
-  at the configured maintenance time. Preview channels require an explicit
-  profile choice. Keep database images within a selected major version.
-- When a profile selects guest LUKS encryption, use a separate encrypted data
-  disk for application configuration, secrets, Docker state, and persistent
-  data. Leave no application secret or Docker metadata on the OS disk.
+Follow the canonical [shared operating standards](docs/standards.md) and the
+selected service profile. The [runbook](RUNBOOK.md) owns implementation and
+recovery procedures; service guides own application-specific requirements.
+Update the canonical source when a shared rule changes instead of maintaining
+parallel defaults here or in a service guide. Record actual choices and any
+authorized deviations only in ignored local records.
 
 ## Safe execution
 

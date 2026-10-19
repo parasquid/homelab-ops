@@ -6,6 +6,9 @@ for its pinned tool versions, deployment configuration, production URL, and
 deployment authorization. Record results for a real site only in its ignored
 inventory and private handoff.
 
+Apply the [shared credential, temporary-storage, and cutover standards](standards.md).
+This guide owns Workers Builds permissions and Hugo-specific diagnosis.
+
 ## Token scope and handling
 
 Use the Cloudflare dashboard for ordinary build-log inspection when existing
@@ -38,19 +41,12 @@ product-level `Admin`; routine deployment of an existing Worker should not
 need that broader role. Use a separate deployment credential from the
 read-only log credential.
 
-Store credentials in an approved protected secret store (for example,
-Vaultwarden where configured) or protected environment. Do not put token
-values in source files, chat, command history, process arguments, logs, or
-tracked documentation. Keep any Cloudflare-managed build token distinct from
-an API token used to read build logs or authenticate Wrangler. Do not copy
-secret values from build logs into a handoff.
-
-If a credential client's default cache is read-only, keep its protection intact.
-Create a temporary owner-only cache on disk-backed storage, configure the
-expected vault server, and let the approved helper authenticate normally.
-For the Bitwarden CLI, select that directory through `BITWARDENCLI_APPDATA_DIR`.
-Keep passwords and unlock material in the existing protected mechanism. Remove
-the exact temporary cache when the operation ends, including failure paths.
+Use the [shared credential-retrieval procedure](../RUNBOOK.md#retrieve-a-service-credential)
+for protected-store access, identity checks, and temporary CLI state. For a
+temporary Bitwarden cache, select the isolated directory with
+`BITWARDENCLI_APPDATA_DIR` and remove that exact cache on completion or failure.
+Keep Cloudflare-managed build tokens distinct from the user-scoped log token
+and deployment credential; their roles above are not interchangeable.
 
 ## Diagnose a failed GitHub check
 
@@ -216,9 +212,8 @@ the page content reflects the deployed change. Use the public response as
 evidence; a passing GitHub check, successful build, or successful Wrangler
 command alone is not live verification.
 
-Record site-specific deployment identifiers, diagnosis, test results, and
-verification outcome only in the ignored inventory and private handoff. Keep
-tracked documentation as reusable procedure.
+Record the publisher, deployment reference, and live-verification evidence in
+the private handoff under the [shared documentation contract](standards.md#documentation-ownership).
 
 ## Cloudflare references
 

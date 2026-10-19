@@ -1,5 +1,9 @@
 # Persistent Firefox browser workspaces
 
+Follow the [shared operating standards](../standards.md) and
+[deployment runbook](../../RUNBOOK.md). This guide owns browser identities,
+profile persistence, authentication, and browser-specific verification.
+
 Use a dedicated VM for interactive browser work so browser state, downloads, and
 updates do not change an automation service. For one attended Firefox session,
 the LinuxServer Firefox image provides Firefox in a browser-accessible KasmVNC
@@ -132,47 +136,25 @@ reference](https://mozilla.github.io/policy-templates/#extensionsettings).
 
 ## Installation outline
 
-1. Check for a free VM ID, unused hostname and tailnet name, DNS conflicts,
-   storage capacity, and host listener conflicts. Keep the browser VM separate
-   from n8n.
-2. Install an official Debian image after verifying its checksum. Provision
-   new virtual disks sparsely unless the service profile explicitly selects
-   thick allocation. Use ext4 inside the guest regardless of the host storage
-   pool. For encrypted data, create ext4 inside LUKS on the data disk.
-3. Follow the general LUKS procedure in `RUNBOOK.md` section 6. Install
-   `cryptsetup` from the guest distribution's signed official repository
-   before formatting. Check the exact disk serial, size, VM attachment, and
-   absence of existing signatures immediately before formatting. Keep the
-   automation key, independent recovery passphrase, and LUKS header copy
-   outside the VM and repository. Do not zero, random-fill, or discard an
-   entire sparse disk.
-4. Put the container image, Compose file, Firefox `/config`, and Basic Auth
-   secret on the unlocked encrypted filesystem. Start one attended browser
-   container and publish only `127.0.0.1:3000:3000`. Before adding any proxy,
-   inspect the generated container and host listener configuration. Check
-   unauthenticated and authenticated responses separately.
-5. After local health and authentication checks pass, join the VM to its
-   authorized tailnet with Tailscale SSH disabled if OpenSSH is the intended
-   administration route. Configure HTTPS ingress only on the VM's tailnet
-   address, using a DNS-only `A` record for the tailnet IPv4 address. Check for
-   conflicting DNS records before creating it. Use Caddy DNS-01 with a
-   Cloudflare token scoped to the zone. Keep the token in a mode-0600 file on
-   the encrypted data mount and grant it only to Caddy as a file-backed
-   Compose secret; do not put it in Compose environment metadata or the
-   Caddyfile.
-   If Caddy runs in a container and Firefox remains bound to `127.0.0.1:3000`,
-   use host networking or another verified narrow route to reach that loopback
-   listener. Bind Caddy to the tailnet address only. Disable its admin API or
-   bind it to loopback, and leave HTTP port 80 closed when DNS-01 is used. If
-   HTTP/3 is not required, disable it so Caddy does not open UDP 443.
-6. If a later design needs multi-user workspaces, active session sharing, or
-   Kasm's Developer API, evaluate Kasm Workspaces separately. Use its matching
-   official installer and checksum, pin the web UI to loopback behind the
-   tailnet proxy, and use unique persistent profiles per user and workspace.
-   A Kasm screenshot API key belongs to a dedicated automation identity and
-   must not grant access to the attended user's browser.
+1. Follow the [shared provisioning, access, and LUKS procedures](../../RUNBOOK.md)
+   for a dedicated browser VM. Keep it separate from workflow automation and
+   place the browser profile and authentication secret on the encrypted data mount.
+2. Start one attended container with the Compose shape above. Publish only
+   `127.0.0.1:3000:3000`, inspect the actual containers/listeners, and test both
+   unauthenticated and authenticated responses before adding a proxy.
+3. Apply the [private DNS and HTTPS procedure](../../RUNBOOK.md#9-configure-private-dns-and-https),
+   including vault-backed DNS credentials, the secret-loading validation path,
+   and a narrow route from Caddy to loopback. Verify browser WebSockets and UI
+   authentication through the private hostname.
+4. Evaluate Kasm Workspaces separately if multi-user workspaces, session sharing,
+   or its Developer API is required. Use the matching official installer and
+   checksum, keep its UI loopback-only, and use unique persistent profiles per
+   user/workspace. A screenshot API key belongs to a separate automation identity
+   and must not grant access to an attended user's browser.
 
 ## Acceptance checks
+
+Complete the [shared checks](../../RUNBOOK.md#10-validate-the-deployment), then verify:
 
 - The browser UI returns an authentication challenge without credentials and
   loads only with the intended Basic Auth credential.

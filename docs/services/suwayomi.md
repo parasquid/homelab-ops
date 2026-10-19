@@ -1,7 +1,8 @@
 # Suwayomi deployment guide
 
-Use this guide to build a private Suwayomi VM. Select site values and the
-release channel in a local profile, then run the acceptance checks below.
+Follow the [shared operating standards](../standards.md) and
+[deployment runbook](../../RUNBOOK.md). Select site values and the Suwayomi release
+channel in a local profile; this guide adds media and helper-specific choices.
 
 ## Decisions and consequences
 
@@ -20,10 +21,7 @@ release channel in a local profile, then run the acceptance checks below.
 ## Profile characteristics
 
 - Dedicated VM sized for the library and expected download activity.
-- Administer the VM with key-only OpenSSH over Tailscale; leave Tailscale SSH
-  disabled. When converting an existing VM, verify the approved key and the
-  OpenSSH host key through the Proxmox guest agent, then test OpenSSH before
-  disabling Tailscale SSH and again afterward.
+- Use the shared [VM access procedure](../../RUNBOOK.md#5-configure-vm-access).
 - Docker Compose application directory standardized as `/opt/suwayomi`.
 - Suwayomi and optional request-helper containers.
 - A large data disk or documented external mount when the library exceeds the
@@ -34,18 +32,10 @@ release channel in a local profile, then run the acceptance checks below.
 
 ## Update policy
 
-Set the release channel in the local profile. For a preview-channel variant,
-select compatible helper channels and schedule an updater at the local
-maintenance time. Have the updater perform:
-
-```bash
-docker compose pull
-docker compose up -d
-```
-
-Wrap the updater in an overlap lock, bound its logs, and verify application
-health before reporting success. Retain the previous image until the updated
-service is healthy.
+Use the [shared guarded updater](../../RUNBOOK.md#8-configure-automatic-application-updates).
+Set the Suwayomi channel explicitly and select compatible request-helper
+channels. A preview-channel choice needs the profile's corresponding acceptance
+and recovery policy.
 
 ## Persistent state
 
@@ -55,6 +45,8 @@ may use a different retention or replication policy based on whether it can be
 downloaded again.
 
 ## Acceptance checks
+
+Complete the [shared checks](../../RUNBOOK.md#10-validate-the-deployment), then verify:
 
 - The web interface loads through private HTTPS.
 - Existing library metadata and configuration remain after recreation.

@@ -6,6 +6,9 @@ systemd manager and leaves the operating-system image unchanged. Replace every
 angle-bracket placeholder with a local value; do not copy deployment-specific
 identifiers into tracked documentation.
 
+Apply the [shared credential, state-protection, and verification standards](standards.md).
+This guide owns the per-user runtime, authentication, and systemd behavior.
+
 The official product references are [Codex remote connections](https://developers.openai.com/codex/remote-connections)
 and the [Codex app server](https://developers.openai.com/codex/app-server).
 The `remote-control` command is version-sensitive. Verify the official
@@ -101,6 +104,11 @@ credential. Allow enough startup time for initial credential retrieval and
 make readiness failure prevent dependent clients from starting. Check this
 ordering during service activation and record actual reboot verification
 separately.
+
+This requirement applies to a mandatory provider. Keep an optional Vaultwarden
+header cache independent of remote-control startup as described in the
+[shared cache procedure](../RUNBOOK.md#http-credentials-and-scoped-caches), so a
+locked vault does not prevent the runtime from starting.
 
 ## User service
 

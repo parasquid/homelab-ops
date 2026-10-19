@@ -19,7 +19,8 @@ another exposure mode.
 ## Start here
 
 1. Read [AGENTS.md](AGENTS.md).
-2. If present, read the ignored `AGENTS.local.md` and `inventory.local.yaml`.
+2. Read the [shared operating standards](docs/standards.md) and, if present,
+   the ignored `AGENTS.local.md` and `inventory.local.yaml`.
 3. Copy `.env.example` to `.env`, fill it locally, and set mode `0600`.
 4. Copy the local context templates, fill them with site-specific facts, and
    set both files to mode `0600`.
@@ -51,6 +52,8 @@ of scope until a real deployment needs them.
 
 ## Service deployment guides
 
+- [Immich](docs/services/immich.md) shows a private photo library with separate
+  media and database storage, compatible container releases, and guarded updates.
 - [n8n](docs/services/n8n.md) shows a stateful web application with a
   database and a version-coupled task runner.
 - [Suwayomi](docs/services/suwayomi.md) shows a media-oriented application
@@ -72,6 +75,11 @@ setup steps, and acceptance checks. They do not report a deployment's chosen
 values, status, history, or test results. Those facts belong in ignored local
 profiles, inventory, and handoffs.
 
+The [standards page](docs/standards.md) is the entry point for shared access,
+LUKS, Vaultwarden/Bitwarden CLI, DNS credentials, and maintenance requirements.
+The runbook owns procedures; service and topic guides link those procedures
+and describe only their additional behavior.
+
 Before publishing, copy `.publication-denylist.example` to the ignored
 `.publication-denylist`, add one exact site-specific value per line, set mode
 `0600`, and run:
@@ -85,24 +93,12 @@ ignored exact-value denylist, and checks common secret patterns. Review tracked
 Markdown separately for deployment-state prose; a value scan cannot detect a
 sanitized diary. Do not embed live identifiers in the repository.
 
-The repository includes the generic
-[`scripts/unlock-from-vaultwarden.sh`](scripts/unlock-from-vaultwarden.sh)
-helper and [`unlock-from-vaultwarden.conf.example`](unlock-from-vaultwarden.conf.example).
-Copy the configuration template to an ignored location, fill in the local
-references, and set it to mode `0600`. The configuration is sourced as trusted
-Bash; it must be operator-controlled and contain secret references rather than
-secret values.
-
-For HTTP clients that accept a dynamic header command, the repository also
-includes [`scripts/vaultwarden-http-headers.sh`](scripts/vaultwarden-http-headers.sh)
-and [`vaultwarden-http-headers.conf.example`](vaultwarden-http-headers.conf.example).
-This keeps a bearer token in the scoped Vaultwarden collection while the client
-configuration stores only the helper command and protected configuration path.
-The helper's JSON output contains the live token and must never be logged.
-For clients that need a faster header command, the runbook describes the
-optional cached helper and its fast fallback. Their protected configuration
-needs the exact collection name and the exact collection and item IDs; see
-[`vaultwarden-http-headers-fast.conf.example`](vaultwarden-http-headers-fast.conf.example).
+The [Vaultwarden LUKS provider procedure](RUNBOOK.md#vaultwarden-backed-luks-unlock)
+documents `scripts/unlock-from-vaultwarden.sh` and its configuration template.
+The [HTTP-header provider and cache procedure](RUNBOOK.md#http-credentials-and-scoped-caches)
+documents the header helpers, their protected references, rotation, and failure
+behavior. Use those canonical procedures instead of maintaining per-service
+copies of the credential workflow.
 
 ## Security
 

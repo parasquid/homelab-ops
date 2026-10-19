@@ -1,7 +1,9 @@
 # n8n deployment guide
 
-Use this guide to build a private n8n VM. Select site values in a local profile
-and verify the result with the acceptance checks below.
+Follow the [shared operating standards](../standards.md) and
+[deployment runbook](../../RUNBOOK.md). This guide adds n8n-specific component,
+workflow, integration, and acceptance requirements. Select site values in a local
+profile; this reference selects the shared guest-LUKS data pattern.
 
 ## Decisions and consequences
 
@@ -11,24 +13,12 @@ and verify the result with the acceptance checks below.
 - Use PostgreSQL and the external task runner rather than the smallest possible
   single-container deployment. This matches the intended long-running service
   shape and makes runner behavior an explicit acceptance check.
-- Use Caddy with a Cloudflare DNS challenge for private HTTPS. The DNS record is
-  DNS-only and resolves to a Tailscale address, so the service remains reachable
-  only from the tailnet. This keeps certificate management independent of
-  Tailscale Serve and creates no public webhook endpoint.
-- Use the VM administrator's approved key with OpenSSH over the tailnet for
-  maintenance and remote unlock. Keep Tailscale SSH disabled so routine agent
-  access does not depend on interactive Tailscale SSH checks.
-- Put state and secrets on a separate guest LUKS disk. Debian and Tailscale can
-  boot for recovery, while Docker and the application wait for a deliberate
-  remote unlock. This protects a copied data disk but leaves the running VM and
-  its OS bootstrap within the Proxmox and Tailscale trust boundaries.
-- Track the stable application channel with automatic daily updates, while
-  keeping PostgreSQL within one selected major version. This reduces routine
-  maintenance. Database migrations may run during updates; follow the profile's
-  backup policy and record when no rollback point exists.
-- Keep reusable credentials in the agent-managed Vaultwarden collection after
-  bootstrap. Protected local copies remain until the operator explicitly
-  approves their removal after the corresponding recovery path has passed.
+- Keep n8n's encryption key with its database recovery set. Use the shared
+  [credential provider](../../RUNBOOK.md#retrieve-a-service-credential) for
+  agent-managed secrets after bootstrap.
+
+Use the [shared access and key-recovery procedure](../../RUNBOOK.md#recover-a-vms-approved-openssh-key-through-proxmox)
+when the guest rejects the approved workstation key.
 
 Private-only access means workflows can call external services, but public
 services cannot call n8n webhooks unless a separate, explicitly public ingress
@@ -36,15 +26,12 @@ design is added.
 
 ## Profile characteristics
 
-- Dedicated Debian VM with modest CPU, memory, and root disk allocations.
 - Docker Compose application directory at `/opt/n8n`.
 - n8n, an external n8n task runner, and PostgreSQL.
 - n8n and its task runner use the same version or release channel.
 - PostgreSQL stays within a selected major version.
 - n8n binds to loopback; PostgreSQL and the runner broker remain internal to
   Compose.
-- Caddy terminates private HTTPS on the VM's Tailscale address.
-- A DNS-only hostname resolves to that Tailscale address.
 - The editor and webhook base URLs use the external HTTPS hostname.
 - Execution history is pruned according to the service profile.
 
@@ -197,15 +184,9 @@ and [environment variable reference](https://docs.n8n.io/deploy/host-n8n/configu
 
 ## Encryption pattern
 
-For stolen-image protection, attach a separate LUKS data disk and place Docker's
-data root, `/opt/n8n`, PostgreSQL data, the n8n encryption key, database
-credentials, and the Caddy API-token environment file on it. Keep the unique
-automation key outside the repository and VM, with a separate recovery
-passphrase and protected LUKS header backup.
-
-After reboot, Debian and Tailscale start from the OS disk. n8n, PostgreSQL, its
-task runner, Docker, and Caddy remain stopped until the encrypted disk is
-remotely unlocked and mounted.
+Use the [shared LUKS procedure](../../RUNBOOK.md#6-configure-optional-guest-luks-encryption).
+Include the n8n home directory, PostgreSQL state, n8n encryption key, and
+integration credentials in the encrypted application state.
 
 ## Persistent state
 
@@ -239,119 +220,32 @@ described in n8n's [environment-managed settings](https://docs.n8n.io/deploy/hos
 Keep automatic workflow exposure disabled; expose only workflows that an MCP
 client must operate.
 
-An n8n MCP API key is tied to the n8n user that created it. Store it as a login
-item password in the agent-managed Vaultwarden collection. Configure Codex with
-the private `/mcp-server/http` URL and the tracked
-`scripts/vaultwarden-http-headers-cached.py` helper, using an ignored mode-`0600`
-configuration copied from `vaultwarden-http-headers-fast.conf.example`. Fill in
-both the exact collection name used by the cache's syncing helper and the exact
-collection and item IDs used by the fast fallback. The Codex configuration
-then contains only the endpoint and helper command; the helper
-retrieves the token at connection time using Codex's documented
-[`http_headers_helper`](https://learn.chatgpt.com/docs/extend/mcp) support. Set
-the MCP client to prompt for tools that can write.
-
-Codex limits HTTP header helpers to 10 seconds. Use the fast helper with
-the protected configuration based on
-`vaultwarden-http-headers-fast.conf.example`; pin the exact Vaultwarden
-collection and item IDs there. The helper checks the configured server,
-account, collection membership, and item name, and reads the local
-encrypted CLI vault without a per-call sync. Bootstrap or resync that CLI
-vault with the general helper before first use and after key rotation.
-
-For faster connection startup, configure the cached helper to read an in-memory
-header from a separate user service over an owner-only Unix socket. Sync and
-refresh the exact Vaultwarden item every 15 minutes without writing the header
-to disk or exposing a TCP listener. Configure the client to fall back to
-`scripts/vaultwarden-http-headers-fast.sh` if the cache is unavailable after
-three local cache reads, with two short retries. Set a 100 ms timeout for each
-cache read and wait 50 ms and 100 ms between retries before invoking the fast
-direct helper. Keep the cache service independent of Codex remote-control
-startup, because Vaultwarden
-may be locked after reboot. After key rotation, restart the cache service
-and reconnect the MCP client to pick up the new header. Scope this cache to
-the selected n8n header; use the Vaultwarden service note's scoped-credential
-pattern if another agent credential needs a cache.
-
-Test the helper by piping its output directly to a structural validator. Never
-print the returned JSON, because its `Authorization` value is the live token.
-Verify the MCP initialize exchange and tool catalog through private HTTPS, then
-confirm at least one deliberately exposed workflow is discoverable. Rotating
-the n8n MCP key invalidates the old value and requires updating the vault item.
+An n8n MCP API key is tied to the user that created it. Store it in the scoped
+agent-managed collection and configure the private `/mcp-server/http` endpoint
+with the [shared Vaultwarden HTTP-header helper procedure](../../RUNBOOK.md#http-credentials-and-scoped-caches).
+That procedure owns protected references, CLI sync, fast/cached helpers,
+rotation, and secret-safe verification. Keep write-capable tools behind the
+client's approval prompt. Verify authentication and discovery of at least one
+workflow deliberately exposed through MCP.
 
 ### Codex discovery timing and recovery
 
-Codex's optional MCP discovery grace period defaults to 1000 ms. A dynamic
-Vaultwarden-backed header helper can exceed that short grace period even when
-the n8n endpoint is reachable and authenticated. The symptom is a missing n8n
-server or tool catalog in Codex, not necessarily an n8n authentication error.
-
-Set the root-level Codex option before any TOML table and keep n8n's own startup
-timeout finite:
-
-```toml
-mcp_optional_startup_grace_ms = 0
-
-[mcp_servers.n8n]
-startup_timeout_sec = 45
-```
-
-The zero global grace makes Codex wait up to the bounded per-server timeout; it
-does not disable timeout protection. Keep the MCP client configured to prompt
-for write-capable tools. Do not place the global option inside
-`[mcp_servers.n8n]`, add a duplicate, or weaken the protected configuration's
-`0600` mode.
-
-The setting is read when the Codex remote-control runtime starts. Apply it only
-at a safe checkpoint with the actual user-runtime restart. That restart
-disconnects the active remote-control task, so checkpoint, reconnect with a new
-task after the service is healthy, and then verify that native n8n tools appear.
-Do not claim the change is active from a file edit or a unit reload alone.
-
-For verification, let the configured MCP client invoke
-`scripts/vaultwarden-http-headers-cached.py` and perform `initialize`, the initialized
-notification, and then `tools/list`. Reuse the returned session identifier when
-the server supplies one; otherwise follow its stateless HTTP behavior. A helper
-result may be piped directly to the client or a structural pass/fail validator,
-but must never be printed or saved: the JSON contains the live `Authorization`
-value. Record only successful request status and that the catalog is present,
-then confirm a write-capable tool still prompts for approval. Do not print
-headers, session identifiers, raw JSON-RPC responses, or unredacted client logs.
-
-If discovery still fails, first confirm the single root-level setting and an
-actual runtime restart/new task. Next check the protected helper configuration,
-credential scope, and endpoint reachability without exposing header output. If
-the helper is slow, adjust only the finite per-server timeout approved by the
-profile. To roll back, remove the root-level option to restore Codex's 1000 ms
-default (or restore its prior approved value), restart the runtime, and
-reconnect with a new task.
+Follow the [shared MCP discovery and runtime-restart procedure](../../RUNBOOK.md#12-configure-optional-mcp-discovery-for-agent-clients).
+Use a finite 45-second n8n startup timeout. After the required runtime restart
+and a new task, verify that native n8n tools and the intended workflow catalog
+are available and write-capable tools still require approval.
 
 ## Update considerations
 
-Automatic updates may track the chosen stable n8n channel. Pull n8n and its task
-runner together so their versions remain compatible. Keep PostgreSQL on its
-selected major channel and handle future major migrations separately.
-
-Run the updater at the local 03:00 maintenance time only after confirming that
-the encrypted data mount is present. Use a non-overlapping lock, wait for the
-Compose health checks and n8n health endpoint, and retain the previous image
-until the updated stack is healthy. A locked post-reboot VM therefore leaves
-the updater harmlessly stopped until the data disk is unlocked and mounted.
-
-Because n8n updates may run database migrations, follow the profile's backup
-choice. Take a backup or snapshot first when one is configured. When backups
-are deferred, the automatic update still runs at its configured time without
-a database rollback point; a retained container image cannot undo a database
-migration. Afterward, verify login, workflow loading, task-runner health, and
-a small test workflow.
-
-Resolve the physical Compose directory before running update commands. Calling
-Compose through a compatibility symlink can change the inferred project name,
-create a second set of empty named volumes, and break relative secret paths.
-Set the project name explicitly and remove an accidental parallel project only
-after proving that its containers and volumes contain no service data.
+Use the [shared guarded updater](../../RUNBOOK.md#8-configure-automatic-application-updates).
+Pull n8n and its external task runner together so they remain compatible; keep
+PostgreSQL on its selected major. After an update, verify login, saved workflows,
+runner health, and a small test workflow. Preserve the matching n8n encryption
+key through any database recovery or migration.
 
 ## Acceptance checks
+
+Complete the [shared checks](../../RUNBOOK.md#10-validate-the-deployment), then verify:
 
 - Owner setup completes through the private HTTPS URL.
 - A manual workflow executes successfully.

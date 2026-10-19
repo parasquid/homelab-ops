@@ -1,5 +1,9 @@
 # Proxmox service deployment runbook
 
+Follow the [shared operating standards](docs/standards.md) for requirements and
+defaults. This runbook owns implementation procedures; service guides link here
+and add application-specific choices rather than copying these steps.
+
 This runbook describes the default path for deploying one private service in a
 dedicated Proxmox VM. The service profile is authoritative for sizing and
 exceptions. Values from the local `.env` supply site-specific configuration.
@@ -164,6 +168,50 @@ forward from Proxmox to that VM's private SSH address. Verify and pin each
 intermediate and final host key independently, and keep strict host-key
 checking enabled on every connection.
 
+### Recover a VM's approved OpenSSH key through Proxmox
+
+When a managed VM rejects public-key authentication, check the authenticated
+Proxmox management route independently. The QEMU Guest Agent can inspect and
+repair the VM administrator's authorized key without an SSH login to the VM.
+Use this route when the requested operation already authorizes that exact
+administrator and public key.
+
+1. Bind the Proxmox node, VM ID, guest hostname, administrator and approved
+   workstation key to the local inventory. Confirm that the matching private
+   identity is available on the requesting workstation. Keep excluded or retired
+   identities excluded.
+2. Authenticate to Proxmox as `PROXMOX_ADMIN_USER` through a trusted management
+   route. Check the VM configuration and guest-agent identity before sending a
+   guest command. If Tailscale SSH requires an interactive check, surface its
+   authentication URL and wait for the check before continuing dependent work.
+3. Through the guest agent, inspect `VM_ADMIN_USER`'s account, home directory,
+   actual authorized-key path, file ownership and permissions. Retrieve the
+   guest's OpenSSH host-key fingerprint through this trusted route and match it
+   to the pinned identity. If the approved key is already present, diagnose its
+   options, effective SSH policy and file permissions before making a change.
+4. Add only the approved public key if absent. Preserve existing key lines,
+   comments and options, use a controlled atomic update of the regular file,
+   and set administrator ownership with directory mode `0700` and file mode
+   `0600`. Detect duplicate keys by key type and blob rather than comment text.
+   Pass input through standard input where supported; never transfer a private
+   key or log key bytes.
+   Retain a protected preimage before replacing the key file, and refuse the
+   write if its contents or metadata have changed since inspection. Persist
+   the operation identity before dispatch. If the result is lost or invalid,
+   inspect that operation and the actual file before considering a retry.
+5. From the requesting workstation, verify a key-only login using the intended
+   identity, batch mode and strict host-key checking. Confirm guest hostname,
+   administrator identity and passwordless sudo. Reinspect the authorized-key
+   file to prove that the approved key occurs once and existing entries remain
+   equal. An unchanged rerun must make no key-file mutation.
+6. Record exact target, account, key fingerprint, recovery route and verified
+   outcome in the ignored inventory and service handoff. Keep live identifiers,
+   key material and incident history out of the tracked procedure.
+
+This recovery adds an administrator's approved public key; it does not require
+changing SSH daemon policy, enabling root or Tailscale SSH in the guest,
+restarting services, rebooting the VM, or changing network exposure.
+
 ## 6. Configure optional guest LUKS encryption
 
 Use `guest-luks-data` when the service profile must protect application state
@@ -184,14 +232,14 @@ data disk. Revoke the Tailscale device immediately if an OS image is suspected
 to have been copied.
 
 Keep the per-service automation key outside the repository and outside the VM.
-The simple default is a unique, high-entropy key file on the protected operator
-host, with mode `0600`; `.env` contains only `LUKS_KEY_DIRECTORY`. A profile may
-instead select Vaultwarden for the automation key: store a unique 64-byte key
-as a base64 login-item password in the scoped collection, and have the local
-helper pin the Vaultwarden server, collection, and exact item. Decode the key
-in memory, validate its byte length, and pass it to `cryptsetup` over standard
-input. Never put the decoded key in `.env`, command arguments, logs, the guest,
-or the repository.
+Use Vaultwarden as the primary provider after bootstrap, following the
+[credential setup and retrieval procedure](#agent-scoped-organization-accounts).
+An external-file provider remains supported for bootstrap or a selected recovery
+path: protect the operator-host file with mode `0600` and put only
+`LUKS_KEY_DIRECTORY` in `.env`. The
+[Vaultwarden unlock procedure](#vaultwarden-backed-luks-unlock) owns key encoding,
+item selection, and validation. Supply either provider's key over standard input;
+never put decoded bytes in `.env`, arguments, logs, the guest, or the repository.
 
 Keep an independent human recovery passphrase outside Vaultwarden, protected
 and available before Vaultwarden can be reached. Do not rely on Vaultwarden to
@@ -267,6 +315,19 @@ deliberately disabled. The VM and Tailscale start, but Docker, Caddy, and the
 application remain stopped until the data disk is unlocked, mounted, and the
 services are started. Test both the locked and unlocked boot states.
 
+### Grow existing guest storage
+
+Before expanding a VM disk, confirm the exact attachment and storage-pool
+headroom. Grow each guest layer in order and verify it before proceeding:
+partition, active LUKS mapping, any LVM physical volume and logical volume, then
+the filesystem. If ext4 is directly on the mapper, grow that filesystem without
+inventing an LVM layer. Use the authorized key over standard input for encrypted
+operations; do not format an existing disk as an expansion step.
+
+Check `lsblk`, `cryptsetup status`, `pvs`, `lvs`, `findmnt`, and `df` as applicable.
+A larger virtual disk alone does not expand its guest filesystem. Verify the
+application's final mount and write path before declaring capacity available.
+
 ## 7. Install Docker and lay out the application
 
 Install Docker Engine and the Compose plugin from Docker's official repository.
@@ -314,6 +375,51 @@ must be retained.
 
 Start the stack, wait for health checks, and test its loopback endpoint before
 adding DNS or Caddy.
+
+### Relocate an existing containerd store
+
+Treat relocation as stopped-service maintenance. Bind the exact VM, source,
+encrypted destination, mapper, configuration and available blocks/inodes before
+copying. Hold the deployment updater's actual lock and the package manager's
+locks throughout the operation so another job cannot replace the inspected
+binaries or recreate containers during maintenance.
+Record service and container restart policies, socket activation and the
+original configuration so temporary changes can be restored exactly.
+
+Stop application containers gracefully before Docker and containerd. Docker's
+live-restore setting can leave them running after the daemon stops. Prevent
+socket activation and automatic restarts, and verify that no shim, mounted
+snapshot or process can still write the source. After stopping Docker, use
+service and kernel state for these checks; Docker inspection would require
+restarting the daemon. Retain a complete keyed
+application-row baseline at the stopped-application checkpoint; counts alone
+cannot establish that persistent state survives the move.
+
+Copy the complete store without pruning snapshots. Preserve numeric ownership,
+modes, times, hard links, symlinks, special files, ACLs and xattrs. Verify every
+entry and regular-file content with a bounded-memory, disk-backed manifest;
+fail on traversal or attribute errors. Compare sparse-file contents separately
+from physical allocation layouts, which may legitimately differ. Flush the
+copy before recording verification complete. Keep the original store intact.
+
+Change only the intended persistent root and enforce an encrypted-mount guard
+that rejects an absent or wrong filesystem. Bind its filesystem UUID as well
+as the mapper and mount path. Validate with the installed
+containerd parser and systemd verifier. Start the database separately and
+compare the saved row map before starting application writers. Check the
+actual active layer paths and mount options, rather than the configured root
+alone: the retained source can conceal stale absolute snapshot paths. Verify
+task-runner registration for this application restart using the installed
+broker contract; a running launcher or an unrelated health endpoint does not
+prove registration. Keep log bodies and runner identifiers out of receipts.
+
+Remove the exact inactive original only with explicit authorization and after
+copy equality, encrypted-root use, persistence and health checks pass. Verify
+recovered blocks/inodes and restore the recorded restart and maintenance
+policies. Once the new store receives writes, the original is stale; rollback
+requires a stopped, verified reverse migration rather than selecting the old
+path. Preserve durable operation stages so an interrupted change can be
+resolved before any retry.
 
 ## 8. Configure automatic application updates
 
@@ -368,6 +474,16 @@ Compose deployment, grant it to Caddy through a file-backed service secret and
 load it into the Caddy process at runtime; do not place the token in the
 Compose environment, Docker metadata, logs, or Caddyfile. The Caddyfile should
 contain only an environment reference.
+
+For the token provider, follow
+[service credential retrieval](#retrieve-a-service-credential) with the exact
+Vaultwarden item authorized for the intended zone. The Caddy Cloudflare module
+documents a single token with `Zone.Zone:Read` and `Zone.DNS:Edit` restricted to
+the managed zones; verify its
+[current requirements](https://github.com/caddy-dns/cloudflare#configuration)
+when provisioning. Stream the selected token field through the verified
+connection into the protected destination file without logging it. A protected
+external source may supply bootstrap or recovery when selected in the profile.
 
 Before copying a Cloudflare API token to a managed VM, check the private
 inventory and agent handoff for the exact token source, intended service,
@@ -549,6 +665,40 @@ Store infrastructure secrets only after this scope test passes. Existing LUKS
 keys and bootstrap credentials remain in their protected external locations
 until the operator explicitly approves their removal.
 
+### Retrieve a service credential
+
+Use the [Bitwarden password-manager CLI](https://bitwarden.com/help/cli/) with
+the verified self-hosted Vaultwarden URL and the scoped agent account established
+above. Keep the bootstrap credential outside the repository; use a protected
+file or password environment mechanism instead of a password argument. Capture
+the unlock result in memory without printing it, and keep the session out of
+command arguments and logs.
+
+1. Read the protected provider configuration: server, account, collection, exact
+   item reference, expected item name, field, encoding, and intended destination.
+   Reuse an applicable standing credential-use grant; confirm the service and
+   destination before transmitting any value.
+2. Check CLI server and account identity, unlock without exposing the session,
+   and sync before selecting the item. Use an owner-only CLI state directory;
+   isolate temporary state on disk-backed storage when the normal cache is
+   unavailable. Do not change an unrelated caller's server or account state.
+3. Fetch and parse the exact item in memory. Verify its identity and collection
+   membership, then select only the intended field and validate its expected
+   format. Fail on ambiguity, mismatched scope, or an unexpected destination.
+4. Send the value directly to its consumer: standard input for a LUKS operation,
+   or a protected file on the verified encrypted destination for a Caddy DNS
+   token. Follow [private DNS and HTTPS](#9-configure-private-dns-and-https) for
+   token transfer, permissions, and secret loading. Never print the response or
+   put decrypted values in container metadata, history, or temporary files.
+5. Release the helper's session and in-memory values when finished, preserving
+   unrelated callers. Verify the consumer result and record only references,
+   permissions, identity checks, and outcomes in the ignored handoff.
+
+The local header cache described below is an optional, explicitly scoped
+optimization; it is not a general credential-retrieval service.
+
+### Vaultwarden-backed LUKS unlock
+
 For an eligible service data disk, store the automation key as a login-item
 password in the agent-managed collection. Binary key files must be encoded,
 for example with base64, and the item must record the encoding and expected
@@ -573,6 +723,8 @@ of it. Test the configured path with:
   --config private/example-service-vaultwarden-unlock.conf \
   --test
 ```
+
+### HTTP credentials and scoped caches
 
 For an HTTP client that supports a dynamic header command, store its bearer
 token as the password of one exact login item in the agent-managed collection.
@@ -608,6 +760,11 @@ Each read is limited to 100 ms, with 50 ms and 100 ms between retries;
 the bounded retry window leaves time for Codex’s 10-second helper limit.
 Do not make Codex remote-control startup depend on the cache: an encrypted
 Vaultwarden VM may remain locked after reboot.
+
+Set the background refresh interval explicitly; the reference header cache uses
+15 minutes. After a token rotation, sync the CLI vault, restart the cache service,
+and reconnect its client so it cannot continue using an old in-memory header.
+Verify the new credential without printing the header.
 
 For additional agent credentials, keep a general Vaultwarden API outside the
 baseline design. Extend a scoped local cache only with a protected allowlist

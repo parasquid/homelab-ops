@@ -1,172 +1,83 @@
 # Vaultwarden deployment guide
 
-Use this guide to build a private password-manager VM. Select site values in a
-local profile and verify the result with the acceptance checks below.
+Follow the [shared operating standards](../standards.md) and
+[Vaultwarden reference procedure](../../RUNBOOK.md#11-vaultwarden-reference-pattern).
+This guide identifies the password manager's component choices and extra
+acceptance checks. The runbook owns registration, scoped account provisioning,
+CLI retrieval, key enrollment, and credential-cache procedures.
 
 ## Decisions and consequences
 
-- Use a dedicated VM because the password manager is a dependency for other
-  service recovery paths. Its lifecycle and failure domain should remain
-  independent of the applications whose credentials it stores.
-- Keep Vaultwarden private behind Caddy on Tailscale with DNS-only Cloudflare
-  records. Email capture and account recovery stay available to tailnet devices
-  without adding public ingress.
-- Use an approved administrator key with OpenSSH over the tailnet for maintenance
-  and remote unlock. Keep Tailscale SSH disabled.
-- Run Mailpit in the same Compose project because it provides a simple private
-  verification path without an external SMTP provider. It is capture-only:
-  messages do not leave the VM and the UI needs separate HTTPS authentication.
-- Close anonymous registration after the owner is verified, while leaving
-  invitations enabled for controlled onboarding.
-- Give every agent host its own organization User and only the agent-managed
-  collection. This creates a revocation boundary per host and keeps operator
-  personal items outside agent access.
-- Keep Vaultwarden's own LUKS key outside Vaultwarden. A vault cannot supply the
-  key needed to start itself, so the bootstrap and authoritative recovery path
-  must remain external.
+Use a dedicated VM because Vaultwarden is a dependency for other service
+recovery paths. Its lifecycle must remain independent of those applications.
+Select the shared guest-LUKS data pattern, with Vaultwarden's own unlock key and
+recovery material outside the vault so it can start before serving credentials.
+
+Run Mailpit in the Compose project as a private SMTP capture service. Captured
+verification and recovery messages stay inside that service; its UI needs
+separate authentication. Close anonymous registration after verifying the
+owner, while leaving invitations available for controlled onboarding.
 
 ## Profile characteristics
 
-- A dedicated Debian VM runs Vaultwarden and Mailpit with Docker Compose.
-- Vaultwarden's web service is reachable only through Caddy on the VM's
-  Tailscale address. Cloudflare holds a DNS-only record for the private
-  hostname; it does not proxy traffic or provide public ingress.
-- Mailpit captures SMTP inside the Compose network. Its SMTP port is never
-  published to the LAN or tailnet. Its UI is optional and follows the same
-  private Caddy path.
-- Docker state, application data, Mailpit data, Compose configuration, and
-  protected environment files live on a separate guest LUKS data disk.
+- Vaultwarden and Mailpit run in one Compose project.
+- Mailpit SMTP has no published host port; its optional UI follows the private
+  proxy pattern and has its own authentication.
+- Persist Vaultwarden data, Mailpit data, Compose configuration, and secrets on
+  the selected encrypted application filesystem.
 
 ## Hostnames and SMTP verification
 
-Use `<component>.<service>.<base-domain>` for auxiliary private endpoints. A
-reference example is `vaultwarden.example.invalid` for the service and
-`mail.vaultwarden.example.invalid` for the Mailpit UI.
-
-Caddy protects the Mailpit web UI with basic auth. Mailpit's SMTP listener is a
-Compose-internal service with `smtp_auth: none`; it has no SMTP username or
-password. Vaultwarden must omit its SMTP username and password and must never
-reuse the UI credential. The recognizable failure for an incorrect auth setup
-is `No compatible authentication mechanism was found`.
-
-After the owner setup, send and accept a real Vaultwarden verification email
-through the private site. A message visible in Mailpit proves capture only; it
-does not exercise Vaultwarden's SMTP configuration or acceptance flow.
+Follow the [Mailpit and SMTP setup](../../RUNBOOK.md#11-vaultwarden-reference-pattern)
+for auxiliary hostname naming, UI Basic Auth, and SMTP authentication settings.
+A captured message alone does not verify Vaultwarden's mail path: complete a real
+verification-email acceptance flow through the private site.
 
 ## Registration lifecycle
 
-Bootstrap with `SIGNUPS_ALLOWED=true`, `SIGNUPS_VERIFY=true`, and an empty
-`SIGNUPS_DOMAINS_WHITELIST=` while keeping `INVITATIONS_ALLOWED=true`. Recreate
-only Vaultwarden, create the first owner through private HTTPS, accept the
-real verification email, and confirm that owner can log in.
-
-Then set `SIGNUPS_ALLOWED=false` with verification still enabled and the
-whitelist still empty. Recreate only Vaultwarden, confirm the running flag is
-false, verify that the backend rejects a new registration, and confirm the
-existing owner login. The registration form may remain visible while the
-backend rejects submissions.
-
-Prefer invitations while general signups are closed. A temporary reopening is
-`true -> recreate -> onboard -> false -> recreate`. A nonempty
-`SIGNUPS_DOMAINS_WHITELIST` overrides the false signup flag for matching
-domains. Admin UI values in `data/config.json` can override environment values,
-so keep the protected environment authoritative unless deliberately changing
-that source. See the upstream [environment template](https://github.com/dani-garcia/vaultwarden/blob/main/.env.template)
-and [configuration implementation](https://github.com/dani-garcia/vaultwarden/blob/main/src/config.rs).
-
-If an organization invitation targets a nonexistent new account while
-`INVITATIONS_ALLOWED=false`, the backend can return `User does not exist`.
-Check the running container policy rather than only the source environment.
-Keep `SIGNUPS_ALLOWED=false`, set `INVITATIONS_ALLOWED=true`, recreate only
-Vaultwarden, verify the running policy is `false:true` and health is good, then
-retry the owner invitation. The normal organization flow requires no Admin UI
-invite and no direct database write.
+Use the [canonical registration procedure](../../RUNBOOK.md#registration-lifecycle)
+for owner creation, closed signups, invitations, and running-policy checks.
+It also owns environment/Admin UI precedence and invitation failure recovery.
 
 ## Agent-scoped access
 
-Use a separate account for each agent host. Invite it as an organization User
-with organization-wide access disabled and assign only the agent-managed
-collection. In the collection access dialog, enable `Edit items` and leave
-`Hide passwords` and `Manage` disabled. This gives read/write access with
-visible passwords while preventing collection management. Keep personal-vault
-data and operator-only collections outside this account's scope.
-
-The invited account completes signup through the invitation link first. The
-organization owner then confirms the accepted member and checks its collection
-assignment. Until that owner confirmation, the account can authenticate while
-the CLI still reports no organizations or collections.
-
-Keep the account bootstrap credential in a protected file outside the
-repository. Use a supported web client to establish the account, then configure
-the Bitwarden CLI with the private Vaultwarden URL. Pass the master password by
-protected file or another non-command-line mechanism. After syncing, test that
-the account can read and write a disposable item only in the intended
-collection and cannot manage collections or see personal-vault items. Preserve
-the bootstrap credential and all existing LUKS keys until another tested
-recovery path exists and the operator explicitly approves removal.
-
-Eligible service automation keys can then move into the agent-managed
-collection. Encode binary key files as base64 in a login-item password and
-record the expected decoded size. A local unlock helper selects one exact item
-from one exact collection, decodes it in memory, and sends the key to
-`cryptsetup` only over standard input. Verify the stored value with an in-memory
-round trip and `cryptsetup open --test-passphrase` before depending on it.
-Retain the protected source key until a real locked-boot recovery succeeds and
-the operator explicitly approves removal.
-
-The tracked `scripts/unlock-from-vaultwarden.sh` contains this reusable logic.
-Copy `unlock-from-vaultwarden.conf.example` to an ignored mode-`0600` file and
-set the deployment-specific references there. The script sources that trusted
-Bash configuration; the populated copy contains identifiers and paths but no
-master password, session, API token, or LUKS bytes.
-
-Vaultwarden's own key cannot exist only inside Vaultwarden because the vault is
-unavailable while its encrypted disk is locked. Keep that bootstrap key and
-the authoritative recovery material externally.
+Follow [agent account and CLI setup](../../RUNBOOK.md#agent-scoped-organization-accounts)
+before making Vaultwarden a credential provider. Use
+[service credential retrieval](../../RUNBOOK.md#retrieve-a-service-credential)
+for consumer credentials and the
+[LUKS helper procedure](../../RUNBOOK.md#vaultwarden-backed-luks-unlock) for
+service unlock keys. Record actual item references and scope-test results only
+in the ignored inventory and handoff.
 
 ## Future scoped local credential cache
 
-Use the n8n MCP header cache pattern for a narrow, owner-only in-memory cache.
-Keep a general credential service outside the baseline design. An optional
-extension should use protected service aliases mapped to exact item and
-collection IDs, expected names,
-response formats, and intended destinations. Refresh each item only after
-checking the configured server, agent account, item identity, and collection
-membership. Clients must not supply arbitrary item IDs, searches, or CLI
-commands.
-
-Use a separate Unix socket or service instance for each trust scope, with
-an owner-only socket directory, mode-`0600` socket, and peer-UID checks.
-Processes under the same UID share that access, so use distinct OS users
-where client boundaries must differ. Keep selected values in memory only;
-never persist decrypted values or session keys, expose a TCP listener, or
-offer the unrestricted Bitwarden CLI `serve` interface. Refresh in the
-background, invalidate on rotation or failed identity checks, and preserve
-an independent bootstrap path while Vaultwarden is locked. Record the live
-allowlist and recovery behavior in ignored inventory and handoff files before
-deploying an extension.
+The [shared HTTP-header and scoped-cache procedure](../../RUNBOOK.md#http-credentials-and-scoped-caches)
+owns the optional cache design, trust scopes, rotation, and failure behavior.
+Keep a general credential API outside the baseline design. An optional cache
+must not make Vaultwarden or agent-runtime startup depend on the locked vault.
 
 ## Locked boot and recovery
 
-The OS disk boots Debian and Tailscale, but the encrypted mount deliberately
-keeps Docker, Caddy, Vaultwarden, and Mailpit stopped. A local helper passes a
-per-service key from outside the repository over standard input, opens the
-mapper, mounts the data disk, and starts the stack. A separate recovery
-passphrase and off-VM LUKS header backup are required recovery material.
+Use the [shared locked-boot and unlock procedure](../../RUNBOOK.md#6-configure-optional-guest-luks-encryption).
+Vaultwarden's key cannot be available only inside Vaultwarden. Verify the
+independent bootstrap path before other services depend on the vault.
 
 ## Updates and backups
 
-Schedule updates for the selected application channel at 03:00 local time after
-a mount check and health verification. Keep the previous image until the update
-is healthy. Same-disk encrypted rollback snapshots can undo a bad update, but
-they are not external disaster recovery; an explicit off-host backup plan is a
-separate requirement.
+Follow the [shared update](../../RUNBOOK.md#8-configure-automatic-application-updates)
+and [recovery procedures](../../RUNBOOK.md#13-handoff-and-lifecycle). A same-disk
+rollback snapshot and an off-host recovery copy have different failure coverage;
+record the profile's selected policy privately.
 
 ## Owner and credential handoff
 
-The operator creates the owner account through private HTTPS and chooses the
-signup policy after bootstrap. Protected local files supply bootstrap
-credentials. After owner setup, Vaultwarden is the primary agent-managed
-credential store. Its own authoritative LUKS recovery material stays outside
-Vaultwarden. Use local-file bootstrap for this reference design. Treat a gopass
-adapter as a separate extension.
+Complete the [shared checks](../../RUNBOOK.md#10-validate-the-deployment), then verify:
+
+- Owner login and a real verification-email acceptance succeed.
+- New public registration is rejected while the owner can still log in and
+  controlled invitations work.
+- Mailpit SMTP remains internal; its UI requires its dedicated authentication.
+- The agent account can access only its intended collection and cannot manage
+  collections or read operator personal-vault items.
+- Vaultwarden can recover using its external unlock material before a dependent
+  service retrieves a key from it.

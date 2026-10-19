@@ -4,6 +4,10 @@ Use this procedure after the full articles and their media have been published
 at their new homes. Keep the redirect project separate from the destination
 sites: a rule for `/` applies to every hostname serving that asset directory.
 
+Apply the [shared credential, temporary-storage, and cutover standards](standards.md).
+This is an explicitly public publishing workflow; private-service DNS defaults
+do not select its production routing.
+
 ## Build the mapping
 
 Create an explicit list of each old article path and its final HTTPS URL.
@@ -33,8 +37,8 @@ routing when the static rules can handle every approved redirect. Check the
 current static asset limits and billing before publishing; script invocation
 has different billing from asset delivery.
 
-Build with the repository's pinned tools in a disk-backed directory. Set
-`TMPDIR`, `TMP`, and `TEMP` there, and keep generated packages out of Git.
+Build with the repository's pinned tools using the
+[shared temporary-storage rules](standards.md#shared-tools-and-acceptance).
 Inspect the packaged rules and 404 page before uploading.
 
 Publish a preview without binding the old production hostname. Verify every
@@ -74,10 +78,10 @@ daemon or host restart, and record its previous settings for recovery.
 
 ## Record and maintain
 
-Commit the redirect source, mapping, and reproduction commands. Keep tokens,
-DNS snapshots, deployment IDs, and site-specific verification results in
-ignored local inventory and handoff files. Record the active publisher and
-how to deploy later mapping changes.
+Commit the redirect source, mapping, and reproduction commands under the
+[shared documentation contract](standards.md#documentation-ownership). Record
+DNS/routing recovery references, the active publisher, and later deployment
+commands in the private handoff.
 
 When a destination URL changes, update its old redirect directly to the new
 final URL to avoid chains. Retain the old hostname and redirect project for as
