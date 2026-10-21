@@ -40,6 +40,14 @@ management route with the guest agent for existing-key recovery. The Proxmox
 API or node CLI can carry those calls. Preserve existing keys; never transfer
 a workstation private key. The guest agent is not SSH authentication.
 
+For routine VM administration, connect from the workstation directly to the
+guest's verified Tailscale IP or hostname with OpenSSH. Use the Proxmox node as
+a separate management hop only when a Proxmox-side operation is needed.
+Run `qm` on the authenticated Proxmox node; the command after the `--`
+separator in `qm guest exec <VMID> -- ...` runs inside the VM. For guest
+commands that consume protected input, use `--pass-stdin 1` and keep the
+command itself in arguments.
+
 Use key-only OpenSSH to the verified tailnet IP or hostname, with strict
 host-key checks, a locked administrator password, and passwordless sudo.
 Tailscale supplies the VPN; disable Tailscale SSH in the guest unless explicitly
@@ -69,8 +77,17 @@ deliberately locked until remote unlock mounts the disk and starts services;
 verify both states. This protects a copied data disk, not an unlocked guest
 from its hypervisor administrator.
 
+For a legacy passphrase-only volume that is already open and whose passphrase
+cannot be supplied through a protected input path, the runbook defines a guarded
+alternative that adds an automation slot from the active volume key. It retains
+the human passphrase in slot 0 and uses slot 1 for automation after confirming
+that slot 1 is unused. This method applies only when the active mapping exposes
+the raw key as hexadecimal; a kernel keyring reference is not key material and
+does not support this route. It does not enable preboot remote unlock.
+
 Procedures: [guest LUKS](../RUNBOOK.md#6-configure-optional-guest-luks-encryption)
-and [existing-volume key enrollment](../RUNBOOK.md#add-an-automation-key-to-an-existing-luks-volume).
+and [existing-volume key enrollment](../RUNBOOK.md#add-an-automation-key-to-an-existing-luks-volume),
+including the [legacy passphrase-only alternative](../RUNBOOK.md#alternate-enrollment-for-an-already-open-legacy-passphrase-only-volume).
 
 ## Vaultwarden and Bitwarden CLI
 

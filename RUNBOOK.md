@@ -113,9 +113,12 @@ size and verify time synchronization and timezone.
 
 Install Tailscale from its official repository and enroll the VM. Keep Tailscale
 SSH disabled; use Tailscale as the private network path to the VM's OpenSSH
-server. Interactive enrollment is acceptable; surface the authorization URL to
-the operator. An automated authentication key must be supplied through a
-protected local mechanism and must not appear in output.
+server. For routine administration, connect from the workstation directly to
+the guest's verified Tailscale IP or hostname as `VM_ADMIN_USER`. Connect to the
+Proxmox node separately as `PROXMOX_ADMIN_USER` only for Proxmox management or
+guest-agent recovery. Interactive enrollment is acceptable; surface the
+authorization URL to the operator. An automated authentication key must be
+supplied through a protected local mechanism and must not appear in output.
 
 Before changing SSH access on an existing VM, verify that OpenSSH is running,
 the intended administrator's approved public key is in `authorized_keys`, and
@@ -175,6 +178,13 @@ Proxmox management route independently. The QEMU Guest Agent can inspect and
 repair the VM administrator's authorized key without an SSH login to the VM.
 Use this route when the requested operation already authorizes that exact
 administrator and public key.
+
+Run Proxmox CLI commands such as `qm` on the authenticated Proxmox node, not on
+the workstation. In `qm guest exec <VMID> -- <command> <args>`, the command and
+arguments after `--` run inside the VM. When a guest command needs protected
+stdin, enable `--pass-stdin 1` and forward that input to the remote `qm`
+process; pass the guest command separately as arguments rather than using the
+same input stream for a script.
 
 1. Bind the Proxmox node, VM ID, guest hostname, administrator and approved
    workstation key to the local inventory. Confirm that the matching private
@@ -315,7 +325,10 @@ the actual assignments locally instead of assuming fixed numbers.
 1. Bind the exact VM, stable device identifier, LUKS UUID, and current keyslots.
    Verify an existing unlock credential against that header before changing it.
    Administrative SSH or guest-agent access alone does not satisfy this
-   procedure's credential prerequisite. Keep independent recovery available.
+   procedure's credential prerequisite. If a legacy passphrase-only volume is
+   already unlocked but its passphrase cannot be supplied through a protected
+   input path, use the restricted alternate procedure below. Keep independent
+   recovery available.
 2. Save a protected header copy outside the VM and its Proxmox storage before
    enrollment. Check available guest memory and run only one key derivation at
    a time; Argon2 can consume enough memory to disrupt running applications.
@@ -325,10 +338,12 @@ the actual assignments locally instead of assuming fixed numbers.
    and verify the stored value by an in-memory readback. Never reuse another
    service's key.
 4. Add the decoded key to an unused slot with `cryptsetup luksAddKey`, authorized
-   by the verified existing credential. Supply both secrets through protected
-   input streams or in-memory file descriptors, without writing them to the
-   guest or placing their values in arguments. Preserve existing slots; use
-   the installed version's [key-enrollment options](https://manpages.debian.org/trixie/cryptsetup-bin/cryptsetup-luksAddKey.8.en.html)
+   by the verified existing credential or, only under the conditions below, the
+   active volume key from an already-open legacy volume. Supply both secrets
+   through protected input streams or in-memory file descriptors, without
+   writing them to the guest or placing their values in arguments. Preserve
+   existing slots; use the installed version's
+   [key-enrollment options](https://manpages.debian.org/trixie/cryptsetup-bin/cryptsetup-luksAddKey.8.en.html)
    to select the intended new slot explicitly. After an interruption, inspect
    the header and test the stored candidate before retrying enrollment; preserve
    the existing vault key and resolve whether its slot was already added.
@@ -336,6 +351,101 @@ the actual assignments locally instead of assuming fixed numbers.
    with `cryptsetup open --test-passphrase`. Test the retained recovery credential
    separately, refresh the off-VM header copy, and verify application health.
    Record slot IDs, provider references, header location, and checks privately.
+
+#### Alternate enrollment for an already-open, legacy passphrase-only volume
+
+Use this exception only when the exact LUKS volume is already open, its
+device-mapper mapping is active, and the legacy passphrase cannot be supplied
+through a protected input path. A privileged operator can ask `dmsetup` for the
+active mapping's volume key and stream its decoded bytes directly to
+`cryptsetup luksAddKey`. This authorizes adding a keyslot without changing or
+removing the passphrase slot. It does not enable remote unlock before the root
+filesystem is opened at boot. The example below applies only when the active
+mapping exposes the raw volume key as hexadecimal. If the mapping instead shows
+a kernel-keyring reference, use `--volume-key-keyring` only when the installed
+cryptsetup documentation confirms that key type is readable by userspace.
+LUKS2 commonly keeps the key in a kernel `logon` keyring and displays a
+reference instead; that reference is not the key and must not be decoded or
+treated as a key file. A `logon` payload is intentionally unreadable to
+userspace, so stop and use the retained passphrase or another supported
+credential in that case. See the installed version's
+[key-enrollment options](https://manpages.debian.org/trixie/cryptsetup-bin/cryptsetup-luksAddKey.8.en.html).
+
+1. Verify the device, LUKS UUID, active mapping, root/mount ancestry, and slot
+   list independently. Confirm the retained passphrase is known to work, using
+   a protected test when available or a recent successful boot unlock when the
+   passphrase cannot be supplied remotely. Do not proceed if the mapping is
+   closed, the passphrase slot is uncertain, or the target identity is
+   ambiguous.
+2. Capture and verify a protected off-VM header copy before the change. Prepare
+   the unique automation key in the approved secret store and a protected
+   input source. Check that the source contains exactly the expected number of
+   bytes; `--new-keyfile-size` is a maximum, not an exact-length check.
+3. Check that the installed `cryptsetup` supports `--volume-key-file`, determine
+   the active volume key's exact size in bits, and inspect the mapper's table
+   format. Continue only if its key field is raw hexadecimal; the example parser
+   deliberately rejects kernel-keyring references and all other formats. The
+   volume key must flow directly from
+   `dmsetup table --showkeys` through a strict parser to an anonymous file
+   descriptor; never display it, capture it in shell variables, log it, or
+   save it to a file. In this legacy layout, retain slot 0 for the existing
+   console passphrase and use slot 1 for automation only after confirming slot
+   1 is empty. If the slots differ or slot 1 is occupied, stop and review the
+   layout. The following is a guest-side script: `dmsetup` and `cryptsetup`
+   must run as root inside the already-unlocked VM, not on the workstation or
+   Proxmox node. Invoke it through the approved Proxmox guest-agent route using
+   `qm guest exec <VMID> --pass-stdin 1 -- /bin/bash -c <guest-script>`; when
+   tunneled over SSH, redirect the protected automation-key file to the SSH
+   command's standard input. Pass the guest script as a command argument with
+   safe quoting; standard input is reserved for the key bytes.
+
+   Example guest-side command shape (replace placeholders only with
+   independently verified, non-secret values):
+
+   ```bash
+   set -euo pipefail
+   VOLUME_KEY_BITS=$(dmsetup table --showkeys "$VERIFIED_MAPPER" |
+     python3 -c '
+   import sys
+   lines = sys.stdin.read().splitlines()
+   if len(lines) != 1:
+       raise SystemExit(1)
+   fields = lines[0].split()
+   if len(fields) < 5 or fields[2] != "crypt":
+       raise SystemExit(1)
+   key = fields[4]
+   if not key or len(key) % 2 or any(c not in "0123456789abcdefABCDEF" for c in key):
+       raise SystemExit(1)
+   print(len(key) * 4)')
+   exec 3< <(
+     dmsetup table --showkeys "$VERIFIED_MAPPER" |
+       python3 -c '
+   import sys
+   lines = sys.stdin.read().splitlines()
+   if len(lines) != 1:
+       raise SystemExit(1)
+   fields = lines[0].split()
+   if len(fields) < 5 or fields[2] != "crypt":
+       raise SystemExit(1)
+   key = fields[4]
+   if not key or len(key) % 2 or any(c not in "0123456789abcdefABCDEF" for c in key):
+       raise SystemExit(1)
+   sys.stdout.buffer.write(bytes.fromhex(key))'
+   )
+   cryptsetup luksAddKey --batch-mode \
+     --volume-key-file=/proc/self/fd/3 --key-size="$VOLUME_KEY_BITS" \
+     --new-keyfile=- --new-keyfile-size="$AUTOMATION_KEY_BYTES" \
+     --new-key-slot=1 "$VERIFIED_DEVICE"
+   ```
+
+   Keep shell tracing disabled. The remote-execution channel supplies the
+   automation key on standard input, while the volume key remains on the
+   inherited anonymous descriptor. Do not reuse a failed command's status as
+   proof of whether a slot changed; inspect the LUKS metadata before any retry.
+4. Verify that the legacy passphrase slot remains present and test the new key
+   against its exact slot. Refresh the protected off-VM header copy and verify
+   the volume and dependent services. Record this method as an exception in the
+   ignored local handoff; keep deployment-specific findings out of public docs.
 
 ### Rotate an existing LUKS unlock key
 
