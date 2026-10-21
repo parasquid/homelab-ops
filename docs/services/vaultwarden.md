@@ -60,7 +60,10 @@ must not make Vaultwarden or agent-runtime startup depend on the locked vault.
 
 Use the [shared locked-boot and unlock procedure](../../RUNBOOK.md#6-configure-optional-guest-luks-encryption).
 Vaultwarden's key cannot be available only inside Vaultwarden. Verify the
-independent bootstrap path before other services depend on the vault.
+independent bootstrap path before other services depend on the vault. For key
+replacement, use the [shared LUKS key rotation procedure](../../RUNBOOK.md#rotate-an-existing-luks-unlock-key)
+so every authorized host and header backup is updated before the old slot is
+retired.
 
 ## Updates and backups
 

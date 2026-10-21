@@ -337,6 +337,48 @@ the actual assignments locally instead of assuming fixed numbers.
    separately, refresh the off-VM header copy, and verify application health.
    Record slot IDs, provider references, header location, and checks privately.
 
+### Rotate an existing LUKS unlock key
+
+Use this procedure when replacing an automation or recovery key while keeping
+the existing encrypted data. Rotation must update every authorized key copy and
+remove the old key from both the live header and operational header backups.
+
+1. Identify the exact VM, stable disk identifier, LUKS UUID, mapper, active
+   slots, key providers, and every host that can unlock the volume. Test the
+   current key against its intended slot and test an independent recovery key
+   against its own slot. Do not begin if either required credential is
+   unverified or the slot map is ambiguous.
+2. Save a protected header backup outside the VM and Proxmox storage. Record
+   that this pre-change header preserves the old keyslot state: the removed key
+   may still unlock data with this backup. Keep the backup protected during the
+   change, and plan to retire it after the final header has been refreshed and
+   verified.
+3. Generate a new unique key on an encrypted, access-controlled host. Store it
+   in a mode-`0600` file under a mode-`0700` directory, and provision it to each
+   authorized unlock host through a protected channel. Do not put key bytes in
+   command arguments, shell history, logs, guest files, or the repository.
+4. Add the new key to an explicitly selected unused slot, authorizing the
+   change with the verified old key. Pass key material through standard input
+   or inherited file descriptors. Check guest memory and serialize memory-hard
+   key derivation so concurrent Argon2 operations do not exhaust the VM.
+5. Test the new key against its exact slot, then test the independent recovery
+   key against its exact slot. Verify each authorized host has the intended new
+   key copy, and verify the service-specific unlock path and application health
+   while the old slot remains available.
+6. With explicit removal authorization, preflight the exact UUID, slot map,
+   old slot, new slot, and recovery slot immediately before removing only the
+   old slot. Authenticate removal with the new key. Re-read the header and
+   retest the new and recovery credentials after removal.
+7. Create a fresh protected header backup from the post-removal header and
+   replace the operational copies on every recovery host. Verify the backup
+   identifies the same LUKS volume and active slot set. Retire the pre-change
+   backup from operational storage; if it must be retained for a defined
+   rollback period, treat the old key as still usable until that copy is
+   destroyed under the storage's deletion policy.
+8. Run the unlock helper and service health check again. Record the new slot
+   mapping, external key references, header backup locations, and test results
+   in ignored local inventory and handoff files only.
+
 A keyslot provides another way to unlock the same volume; it does not provide
 a pre-boot network path. If the OS root is encrypted, normal SSH, Tailscale, and
 the guest agent become available only after root unlock. Establish a separate

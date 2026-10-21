@@ -102,7 +102,8 @@ directories with `0700` where practical.
 
 Procedures: [agent account and CLI setup](../RUNBOOK.md#agent-scoped-organization-accounts),
 [credential retrieval](../RUNBOOK.md#retrieve-a-service-credential), and
-[Vaultwarden LUKS helper](../RUNBOOK.md#vaultwarden-backed-luks-unlock).
+[Vaultwarden LUKS helper](../RUNBOOK.md#vaultwarden-backed-luks-unlock) and
+[LUKS key rotation](../RUNBOOK.md#rotate-an-existing-luks-unlock-key).
 
 ## Private DNS and HTTPS
 
