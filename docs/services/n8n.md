@@ -247,6 +247,30 @@ container channels without printing them, repair the application role, and
 record the mismatch. Do not recreate a database volume that may contain user
 data.
 
+## Workstation-hosted Ollama models
+
+Follow the [local AI workstation guide](../local-ai.md) for GPU routing,
+Tailscale access, and listener checks. From the n8n VM, call the workstation's
+tailnet address on port `11434`; `127.0.0.1` inside the n8n VM refers to that
+guest, not the workstation. Ollama's local API has no authentication, so keep
+the route tailnet-only and restrict it with tailnet policy. Do not expose it
+through public ingress or Funnel.
+
+Use Ollama's native `/api/chat` endpoint when a workflow needs explicit
+`options.num_ctx` or JSON/JSON-schema output. Set `num_ctx` to the selected
+model's supported maximum when full context is the chosen operating mode, and
+verify the allocated value with `ollama ps`. Larger context windows require
+more memory; budget for the number of parallel requests as well. If an
+OpenAI-compatible client fits better, use Ollama's `/v1` endpoint and confirm
+that the chosen node passes the required context options. Ollama documents
+that endpoint as a subset of the OpenAI API; clients may require a placeholder
+API-key value that Ollama ignores.
+
+Keep the actual model tag, context setting, and tailnet endpoint in ignored
+local inventory and handoff records. Before relying on the model, validate its
+response shape and factual output against representative event records; keep
+deterministic validation in the workflow before storing or publishing a result.
+
 ## Agent and MCP access
 
 Enable [n8n's instance-level MCP
@@ -347,6 +371,9 @@ verify:
 
 - Owner setup completes through the private HTTPS URL.
 - A manual workflow executes successfully.
+- If workflows call a workstation-hosted model, n8n reaches it over the
+  tailnet, the model tag and context setting match the private handoff, and a
+  representative response passes the workflow's deterministic validation.
 - A Code-node workflow uses the external task runner successfully.
 - A webhook is reachable from another tailnet-connected device.
 - The instance-level MCP endpoint authenticates through the Vaultwarden-backed

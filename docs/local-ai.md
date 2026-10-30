@@ -102,6 +102,22 @@ The persistent volume preserves downloaded models across container recreation.
 track later changes to the `latest` tag. Pin a release or digest when
 repeatability matters.
 
+## Context-window sizing
+
+The context window is the maximum number of tokens held in memory for a model
+request. Ollama's default depends on available VRAM and may be smaller than the
+model's supported maximum. To set the model's full window for a remote
+workflow, pass `options.num_ctx` on each native `/api/chat` request, or set
+`OLLAMA_CONTEXT_LENGTH` only when a server-wide default is intended. Check the
+allocated context with `ollama ps`.
+
+Larger context settings increase memory use. Ollama's per-model parallel
+request setting multiplies the context allocation, so keep calls serialized or
+size concurrency from measured memory headroom when full context is enabled.
+JSON response formatting is available on `/api/chat`; use a JSON schema when
+the workflow needs a strict output shape and validate the response before
+downstream writes.
+
 ## Start and verify the service
 
 Use the [runbook's workstation Quadlet procedure](../RUNBOOK.md#workstation-local-rootless-quadlets)
@@ -179,6 +195,10 @@ deferral in the ignored local inventory and handoff.
 - [Bluefin images](https://docs.projectbluefin.io/sv/images/)
 - [Ollama Quadlet example](../examples/ollama.container.example)
 - [Ollama container deployment](https://docs.ollama.com/docker)
+- [Ollama context length](https://docs.ollama.com/context-length)
+- [Ollama chat API](https://docs.ollama.com/api/chat)
+- [Ollama context and concurrency FAQ](https://docs.ollama.com/faq)
+- [Ollama OpenAI compatibility](https://docs.ollama.com/api/openai-compatibility)
 - [NVIDIA Container Toolkit CDI support](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/cdi-support.html)
 - [Podman Quadlet systemd units](https://docs.podman.io/en/latest/markdown/podman-systemd.unit.5.html)
 - [Podman Quadlet container options](https://docs.podman.io/en/latest/markdown/podman-container.unit.5.html)
