@@ -152,9 +152,11 @@ file appears to have unsafe ownership or permissions, do not change ownership
 or permissions of that system file. Verify the same read-only operation outside
 the sandbox only when the active session explicitly provides and permits that
 route. If it is unavailable, retry the individual direct SSH command with
-`ssh -F /dev/null`, strict host-key checking, and any previously approved
-identity or connection options supplied explicitly. Use an already verified
-known-hosts entry; never accept an unverified key or disable strict checking.
+`ssh -F /dev/null` only when the target is reachable without the system SSH
+configuration and its host key is already verified. Supply any previously
+approved identity or connection options explicitly. If the required route
+depends on system SSH configuration, report the operation as blocked. Never
+accept an unverified key or disable strict checking.
 For Git over SSH, use a per-command `GIT_SSH_COMMAND` with `-F /dev/null` and
 strict host-key checking when the remote works that way; do not save the
 override in Git configuration. Do not treat this client-side configuration
@@ -1119,24 +1121,24 @@ of them.
 
 ## 14. Mirror n8n workflow definitions to private Git
 
-This procedure backs up workflow definitions only. It is a useful application-level recovery layer, not a backup of the n8n database, VM, application data, credentials, binary files, or execution history. Follow the [n8n service note](docs/services/n8n.md#workflow-definition-git-backups) alongside this runbook.
+This procedure backs up workflow definitions only. It is a useful application-level recovery layer, not a backup of the n8n database, VM, application data, credentials, binary files, or execution history. For full-instance recovery, follow n8n's [backup and restore guide](https://docs.n8n.io/deploy/host-n8n/keep-n8n-running/backup-and-restore/). Follow the [n8n service note](docs/services/n8n.md#workflow-definition-git-backups) alongside this runbook.
 
 ### Prerequisites
 
-- Create a private destination repository and select its default branch. Use a dedicated GitHub fine-grained token restricted to that repository with Contents write permission. Do not reuse a broad interactive GitHub CLI token for the workflow.
+- Create a private destination repository and select its default branch. Use a dedicated GitHub fine-grained token restricted to that repository with [Contents write permission](https://docs.github.com/en/rest/authentication/permissions-required-for-fine-grained-personal-access-tokens). Do not reuse a broad interactive GitHub CLI token for the workflow.
 - Create a separate n8n Public REST API key through the authenticated n8n settings UI. Current n8n versions may label this page “n8n API” or “API keys”; the Public REST API does not provide a key-creation endpoint. On self-hosted Community, each Public API key has full account access, so treat it as a high-privilege credential even though the backup workflow only reads definitions. See the [n8n API authentication guide](https://docs.n8n.io/connect/n8n-api/authentication/).
 - Store each token as its own encrypted n8n header-auth credential. The n8n workflow uses the Public API credential for n8n API calls and the GitHub credential for repository calls. Never put either value in workflow parameters, exported JSON, code, logs, or execution data. Do not use the instance-level MCP bearer as a substitute for the Public API key.
-- Confirm that the n8n runtime can reach the instance's Public API endpoint and GitHub's REST API, and that the built-in Schedule Trigger, HTTP Request, and Code nodes are available. No third-party community node is required.
-- Ensure workflow definitions contain no hard-coded secrets. Treat the private repository as sensitive because definitions can reveal internal logic, service names, and credential references.
+- Confirm that the n8n runtime can reach its Public API endpoint and GitHub's REST API, and that the built-in Schedule Trigger, HTTP Request, and Code nodes are available. From inside the n8n container, use its internal Compose service name and port for the self-API call; do not broaden the host listener for the backup. If SSRF protection blocks that fixed private hostname, allow only the exact service hostname in `N8N_SSRF_ALLOWED_HOSTNAMES`. That exception bypasses blocked-IP ranges, so keep it only while the backup workflow needs it; see the [n8n SSRF guidance](docs/services/n8n.md#restricted-url-fetch-helper). No third-party community node is required.
+- Ensure workflow definitions contain no hard-coded secrets, and review each new or changed definition before it can enter the backup. Pattern-based secret scans can help but do not prove that a definition contains no secrets. Treat the private repository as sensitive because definitions can reveal internal logic, service names, and credential references.
 
 ### Build and first acceptance
 
 1. Create the backup workflow as an inactive draft. Configure a schedule and timezone, the two separate credentials, and execution settings that retain no success, error, manual, or progress data where supported. Keep Available in MCP off unless an operator specifically needs MCP execution.
 2. Read the complete workflow list from the Public REST API. Use cursor pagination, follow every next-cursor value until the API returns no next cursor, and fetch each listed workflow's full definition. Include active, inactive, and archived workflows. The maximum page size is documented in the [pagination guide](https://docs.n8n.io/connect/n8n-api/pagination/).
 3. Fail closed if a page is missing, truncated, repeated, or malformed; if workflow IDs are duplicated; or if any detail response is missing or disagrees with the list. Do not write a partial manifest or delete repository files when inventory completeness is uncertain.
-4. Normalize each definition into one canonical file at workflows/<workflow-id>.json. Keep a manifest at the repository root that records the complete workflow ID set and active/archived state. Exclude credential secret values, executions, pinned data, static execution data, and binaries. Preserve credential references only when needed to reconnect the workflow.
+4. Normalize each definition into the format accepted by the selected n8n import method; do not store raw Public API responses. Keep one canonical file at workflows/<workflow-id>.json and a manifest at the repository root with the complete workflow ID set and active/archived state. Strip read-only API metadata such as active/archive flags, timestamps, version IDs, sharing records, and active-version snapshots from the import file. Exclude credential secret values, executions, pinned data, workflow static data, and binaries. Preserve credential references only when needed to reconnect the workflow.
 5. Compare the manifest's unique ID set with the fully paginated inventory, and confirm exactly one canonical file per current ID. Confirm that archived workflows are present. Verify the repository is private before the first write.
-6. Run the workflow once manually. A successful changed backup creates a Git commit containing the canonical files and manifest. If execution history is disabled, a missing manual execution record is expected; verify the Git commit and its contents instead. If the backup is already current and creates no commit, compare the manifest and canonical file set directly with the complete live inventory.
+6. Run the workflow once manually. Publish each complete file set and manifest together in one Git commit. Use GitHub's [Git trees](https://docs.github.com/en/rest/git/trees), [commits](https://docs.github.com/en/rest/git/commits), and [references](https://docs.github.com/en/rest/git/refs) endpoints to build a tree and commit against the observed branch tip, then update the branch without force; if the tip changes, stop and rebuild against the new tip. Do not write each file as a separate Contents API commit, which can leave a partial snapshot after a mid-run failure. If execution history is disabled, a missing manual execution record is expected; verify the Git commit and its contents instead. If the backup is already current and creates no commit, compare the manifest and canonical file set directly with the complete live inventory.
 7. Only after the complete backup is verified, remove dated or duplicate snapshot files from the current repository tree. Git history retains earlier versions. Keep the cleanup in one normal commit; never force-push or rewrite history.
 8. Publish the scheduled workflow only after acceptance. Run it once against the published state or wait for its scheduled run, then confirm the manifest includes the backup workflow itself with its active state and that all IDs still match. Keep Available in MCP off afterward. If native MCP access is needed for a one-time test, change the setting through the workflow settings UI, then restore it and verify the final setting there.
 
@@ -1148,9 +1150,10 @@ Distinguish n8n Public API authentication errors from GitHub authentication or p
 
 ### Restore
 
-1. Clone the private repository and select the commit to restore. Review the manifest and the workflow JSON files before importing them.
-2. Import definitions into the target n8n instance as inactive workflows. Recreate credentials from the approved secret store and map each credential reference to the target instance's credential. The repository does not contain secret values, so it cannot restore credentials by itself.
-3. Validate the imported workflows and their dependencies before publishing or enabling schedules. Restore the n8n database, VM, binary data, and other application data through their separate backup procedures.
+1. Clone the private repository and select the commit to restore. Review the manifest and workflow JSON files, and check for ID collisions in the exact target instance before importing. The n8n Server CLI can overwrite workflows with matching IDs.
+2. Import definitions using a supported workflow-import method as inactive workflows. Recreate credentials from the approved secret store and map each credential reference to the target instance's credential. The repository does not contain secret values, so it cannot restore credentials by itself.
+3. If a workflow depends on `staticData` for a cursor or other persisted state, restore or reinitialize that state through its separate protected recovery procedure and account for replay before activation. This Git backup excludes `staticData`.
+4. Validate the imported workflows and their dependencies before publishing or enabling schedules. Restore the n8n database, VM, binary data, and other application data through their separate backup procedures.
 
 ## Workstation-local rootless Quadlets
 

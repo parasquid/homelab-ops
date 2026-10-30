@@ -89,11 +89,12 @@ the marker before processing a request.
 When Tailscale `nginx-auth` supplies a trusted portal identity, pass the actual
 peer address and port to its Unix socket through Caddy `forward_auth`. Copy only
 the verified identity header into the request sent to the matching webhook.
-Restrict socket permissions to the Caddy process: the auth service accepts the
-peer address as request metadata, so other local processes must not be able to
-query it. For a root Caddy container using host networking, a root-owned mode
-`0600` socket is suitable; otherwise grant access only to a dedicated proxy
-identity. Test that an unprivileged local process cannot connect.
+Restrict socket access to the Caddy process: the auth service accepts the peer
+address as request metadata, so other local processes must not be able to query
+it. Set the socket owner and mode for the actual Caddy identity and container
+user-namespace mapping, then test that an unprivileged local process cannot
+connect. See Tailscale's [nginx-auth guide](https://tailscale.com/blog/tailscale-auth-nginx)
+and Caddy's [`forward_auth` documentation](https://caddyserver.com/docs/caddyfile/directives/forward_auth).
 
 Keep reads on GET and mutations on POST. For every mutation, require the exact
 portal `Origin`, `application/json`, and a custom request header; reject absent
@@ -252,11 +253,11 @@ See the [n8n workflow backup runbook](../../RUNBOOK.md#14-mirror-n8n-workflow-de
 
 Use separate n8n credentials for the Public REST API and GitHub. On self-hosted Community, Public REST API keys have full account access and cannot be limited to workflow reads. Keep the key in an encrypted n8n credential, treat it as a high-privilege credential, and do not reuse the user-bound MCP bearer. Use a GitHub fine-grained token limited to the destination private repository with Contents write permission.
 
-The n8n runtime must reach its own Public API endpoint and the GitHub REST API. Follow cursor pagination through the final page, fetch details for every listed workflow, and confirm archived coverage before treating a backup as complete. The [n8n pagination guide](https://docs.n8n.io/connect/n8n-api/pagination/) documents cursor-based pagination and page limits.
+The n8n runtime must reach its own Public API endpoint and the GitHub REST API. From inside the n8n container, use its internal Compose service name and port for the self-API call; do not broaden the host listener for the backup. If SSRF protection blocks that fixed private hostname, allow only the exact service hostname in `N8N_SSRF_ALLOWED_HOSTNAMES`. That exception bypasses blocked-IP ranges, so keep it only while the backup workflow needs it; see the [n8n SSRF guidance](#restricted-url-fetch-helper). Follow cursor pagination through the final page, fetch details for every listed workflow, and confirm archived coverage before treating a backup as complete. The [n8n pagination guide](https://docs.n8n.io/connect/n8n-api/pagination/) documents cursor-based pagination and page limits.
 
 Keep one current JSON definition per workflow ID and a manifest of the complete inventory. Include active and archived state. Do not retain dated duplicate exports in the current tree; use Git history for prior versions, and prune older snapshots only after a complete inventory and matching canonical file set have been verified.
 
-Exports may contain internal workflow logic, names, and credential references, so keep the destination private. They must not contain credential values, execution records, pinned or static execution data, or binary data. Check for hard-coded secrets before the first backup. Set the backup workflow to retain no execution data where the n8n version permits it; when manual execution history is disabled, verify completion from the Git commit and manifest rather than expecting an execution-history row.
+Exports may contain internal workflow logic, names, and credential references, so keep the destination private. They must not contain credential values, execution records, pinned data, workflow static data, or binaries. n8n `staticData` can hold cursors or other small values that affect later runs; excluding it can cause replay after recovery, so prepare a separate protected recovery or reinitialization plan for workflows that depend on it. See n8n's [`getWorkflowStaticData` reference](https://docs.n8n.io/build/code-in-n8n/cookbook/built-in-methods-and-variables-examples/getworkflowstaticdata/). Review new and changed definitions for hard-coded secrets before the next backup; pattern-based scans can help but do not prove absence. Set the backup workflow to retain no execution data where the n8n version permits it; when manual execution history is disabled, verify completion from the Git commit and manifest rather than expecting an execution-history row.
 
 Keep the workflow's Available in MCP setting off unless a client needs to operate it. Change and verify that setting in the n8n workflow settings UI; do not assume an MCP workflow update changes it.
 ### Codex discovery timing and recovery
