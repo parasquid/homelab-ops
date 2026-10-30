@@ -127,6 +127,38 @@ check, and the renderer check in the logged-in user session. Confirm connected
 outputs still belong to the integrated GPU and normal desktop rendering still
 uses it.
 
+## Tailnet access for a remote client
+
+When a service such as n8n on another tailnet node must call Ollama, use the
+[runbook's Tailscale Serve
+procedure](../RUNBOOK.md#tailnet-access-to-a-workstation-api).
+Keep Ollama bound to `127.0.0.1:11434`; Serve can publish the same port on the
+Tailscale interface:
+
+```sh
+sudo tailscale serve --bg --http=11434 http://127.0.0.1:11434
+sudo tailscale serve status
+sudo tailscale funnel status
+ss -lnt '( sport = :11434 )'
+```
+
+From the client node, replace this reserved example name with the workstation's
+MagicDNS name and verify the API:
+
+```sh
+WORKSTATION_MAGICDNS=ollama-host.tailnet.example
+curl -fsS "http://$WORKSTATION_MAGICDNS:11434/api/version"
+```
+
+The Ollama API has no authentication, so access follows the tailnet's ACL
+policy. Tailscale encrypts traffic between tailnet nodes. Use this HTTP route
+for server-to-server consumers; Tailscale notes that HTTP web services can
+face DNS-rebinding risks when browsers visit untrusted sites. Tailscale HTTPS
+certificates publish machine names in public Certificate Transparency logs,
+so account for that disclosure before enabling HTTPS.
+
+Remove only this Serve route with `sudo tailscale serve --bg --http=11434 off`.
+
 ## Maintenance and recovery
 
 Use the [runbook's workstation Quadlet procedure](../RUNBOOK.md#workstation-local-rootless-quadlets)
@@ -150,3 +182,5 @@ deferral in the ignored local inventory and handoff.
 - [NVIDIA Container Toolkit CDI support](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/cdi-support.html)
 - [Podman Quadlet systemd units](https://docs.podman.io/en/latest/markdown/podman-systemd.unit.5.html)
 - [Podman Quadlet container options](https://docs.podman.io/en/latest/markdown/podman-container.unit.5.html)
+- [Tailscale Serve CLI](https://tailscale.com/docs/reference/tailscale-cli/serve)
+- [Tailscale HTTPS certificate visibility](https://tailscale.com/docs/how-to/set-up-https-certificates)

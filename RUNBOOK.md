@@ -1203,3 +1203,42 @@ restore the prior setting with `sudo loginctl disable-linger "$USER"`.
 
 The [local AI workstation guide](docs/local-ai.md) applies these lifecycle
 steps to Ollama and adds its hybrid-GPU and model-inference checks.
+
+### Tailnet access to a workstation API
+
+Keep an application's listener on loopback and use Tailscale Serve to make it
+available to approved tailnet clients. For Ollama, where the local API uses
+`127.0.0.1:11434`, Serve can use the same port on the Tailscale interface:
+
+```sh
+sudo tailscale serve --bg --http=11434 http://127.0.0.1:11434
+sudo tailscale serve status
+sudo tailscale funnel status
+ss -lnt '( sport = :11434 )'
+```
+
+The raw application listener must remain at `127.0.0.1:11434`; the Serve
+listener should be scoped to `tailscale0`. Confirm the client can call
+`http://<workstation-magicdns-name>:11434/api/version` and that a non-tailnet
+address cannot reach the endpoint. `--bg` keeps the Serve route active across
+Tailscale restarts and host reboots. Tailscale Serve is tailnet-only; Tailscale
+Funnel shares a service on the public internet. Never use Funnel for a private
+inference endpoint.
+
+The Ollama API has no authentication, so tailnet ACL policy determines which
+devices can use it. Review that policy before sharing the endpoint. HTTP over
+Tailscale's encrypted peer connection suits server-to-server clients such as
+n8n. Avoid exposing an HTTP API to browsers that may load untrusted sites;
+Tailscale documents a DNS-rebinding risk for HTTP web services. If HTTPS is
+preferred, account for the publication of machine names in public Certificate
+Transparency logs before enabling it.
+
+Remove only this route with:
+
+```sh
+sudo tailscale serve --bg --http=11434 off
+```
+
+See the [Tailscale Serve CLI](https://tailscale.com/docs/reference/tailscale-cli/serve),
+[Tailscale security guidance](https://tailscale.com/docs/reference/best-practices/security),
+and [HTTPS certificate setup](https://tailscale.com/docs/how-to/set-up-https-certificates).
