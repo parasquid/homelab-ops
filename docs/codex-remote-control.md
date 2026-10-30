@@ -157,7 +157,11 @@ systemctl --user enable --now codex-remote-control.service
 ```
 
 `enable-linger` changes the host's user-manager lifecycle. It does not grant
-root access and does not make the service a system unit.
+root access and does not make the service a system unit. Linger also does not
+prevent the operating system from suspending. When the host must accept
+unattended remote work, follow the [remote host availability
+procedure](remote-host-availability.md); keep the Codex process unprivileged
+and the host-level sleep inhibitor separate.
 
 ## Verification
 

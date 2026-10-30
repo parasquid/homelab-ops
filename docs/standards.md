@@ -9,7 +9,9 @@ design; their routing does not change private-service defaults.
 The VM, application-storage, and private-ingress requirements apply to service
 VMs. Workstation tools and public publishing inherit the relevant credential,
 tooling, cutover, and verification rules; they retain their documented host and
-exposure designs.
+exposure designs. Workstations used for unattended remote execution must also
+follow the [remote host availability procedure](remote-host-availability.md);
+user-manager linger alone does not prevent suspend.
 
 ## Documentation ownership
 
@@ -17,6 +19,7 @@ exposure designs.
 | --- | --- |
 | This page | Shared requirements and canonical procedure links. |
 | [RUNBOOK.md](../RUNBOOK.md) | Provisioning, access, encryption, credentials, HTTPS, updates, and acceptance procedures. |
+| [Remote host availability](remote-host-availability.md) | Sleep policy and persistence checks for unattended remote execution hosts. |
 | [Service guides](services/README.md) and topic guides | Application behavior, integrations, exceptions, and additional checks; link shared procedures instead of copying them. |
 | Local profile | Selected resources, release line, exposure, encryption, and recovery choices. |
 | Ignored inventory and handoff | Live identifiers, versions, decisions, audit findings, results, maintenance commands, recovery references, and pending work. |

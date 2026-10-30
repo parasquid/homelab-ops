@@ -1072,6 +1072,11 @@ Produce an ignored local deployment record containing:
 - Routine start, stop, logs, update, reboot, and recovery commands.
 - All deviations from this runbook and all deferred work.
 
+For a workstation expected to host unattended remote execution, follow the
+[remote host availability procedure](docs/remote-host-availability.md). Record
+the effective idle policy, live inhibitor, boot enablement, reboot verification,
+and recovery path in the ignored local handoff.
+
 Update the matching tracked service note only when work reveals a reusable
 procedure, design tradeoff, generic failure mode, or acceptance check. Write
 it as guidance for a new operator. Put the originating deployment's status,

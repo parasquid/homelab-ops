@@ -154,7 +154,10 @@ systemctl --user enable --now claude-remote-control.service
 ```
 
 Linger changes the user manager's lifecycle. It does not grant root access and
-does not make the service a system unit.
+does not make the service a system unit. It also does not prevent the operating
+system from suspending. When the host must accept unattended remote work, follow
+the [remote host availability procedure](remote-host-availability.md); keep the
+Claude process unprivileged and the host-level sleep inhibitor separate.
 
 ## Verification
 
