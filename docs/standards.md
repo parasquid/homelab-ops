@@ -15,16 +15,24 @@ user-manager linger alone does not prevent suspend.
 
 ## Documentation ownership
 
-| Document | Owns |
-| --- | --- |
-| This page | Shared requirements and canonical procedure links. |
-| [RUNBOOK.md](../RUNBOOK.md) | Provisioning, access, encryption, credentials, HTTPS, updates, acceptance, and workstation Quadlet lifecycle procedures. |
-| [Remote host availability](remote-host-availability.md) | Sleep policy and persistence checks for unattended remote execution hosts. |
-| [Local AI workstation guide](local-ai.md) | Workstation-local inference, hybrid GPU routing, and model-service checks. |
-| [Service guides](services/README.md) and topic guides | Application behavior, integrations, exceptions, and additional checks; link shared procedures instead of copying them. |
-| Local profile | Selected resources, release line, exposure, encryption, and recovery choices. |
-| Ignored inventory and handoff | Live identifiers, versions, decisions, audit findings, results, maintenance commands, recovery references, and pending work. |
-| [AGENTS.md](../AGENTS.md) | Agent execution constraints and the requirement to follow these standards. |
+- **This page:** Shared requirements and canonical procedure links.
+- **[RUNBOOK.md](../RUNBOOK.md):** Provisioning, access, encryption,
+  credentials, HTTPS, updates, acceptance, and workstation Quadlet lifecycle
+  procedures.
+- **[Remote host availability](remote-host-availability.md):** Sleep policy and
+  persistence checks for unattended remote execution hosts.
+- **[Local AI workstation guide](local-ai.md):** Workstation-local inference,
+  hybrid GPU routing, and model-service checks.
+- **[Service guides](services/README.md) and topic guides:** Application
+  behavior, integrations, exceptions, and additional checks. Link shared
+  procedures instead of copying them.
+- **Local profile:** Selected resources, release line, exposure, encryption,
+  and recovery choices.
+- **Ignored inventory and handoff:** Live identifiers, versions, decisions,
+  audit findings, results, maintenance commands, recovery references, and
+  pending work.
+- **[AGENTS.md](../AGENTS.md):** Agent execution constraints and the
+  requirement to follow these standards.
 
 Tracked files teach another operator how to build and verify a similar system.
 Keep deployment history and current-state claims private even after removing
@@ -61,7 +69,8 @@ and sudo after provisioning or SSH repair.
 
 Procedures: [VM creation](../RUNBOOK.md#4-create-the-vm),
 [VM access](../RUNBOOK.md#5-configure-vm-access), and
-[direct SSH bootstrap or repair](../RUNBOOK.md#establish-or-repair-direct-vm-ssh-through-proxmox).
+[direct SSH bootstrap or
+repair](../RUNBOOK.md#establish-or-repair-direct-vm-ssh-through-proxmox).
 
 ## Storage and encryption
 
@@ -91,14 +100,18 @@ that slot 1 is unused. This method applies only when the active mapping exposes
 the raw key as hexadecimal; a kernel keyring reference is not key material and
 does not support this route. It does not enable preboot remote unlock.
 
-Procedures: [guest LUKS](../RUNBOOK.md#6-configure-optional-guest-luks-encryption)
-and [existing-volume key enrollment](../RUNBOOK.md#add-an-automation-key-to-an-existing-luks-volume),
-including the [legacy passphrase-only alternative](../RUNBOOK.md#alternate-enrollment-for-an-already-open-legacy-passphrase-only-volume).
+Procedures: [guest
+LUKS](../RUNBOOK.md#6-configure-optional-guest-luks-encryption)
+and [existing-volume key
+enrollment](../RUNBOOK.md#add-an-automation-key-to-an-existing-luks-volume),
+including the [legacy passphrase-only
+alternative](../RUNBOOK.md#alternate-enrollment-for-an-already-open-legacy-passphrase-only-volume).
 
 ## Vaultwarden and Bitwarden CLI
 
 After bootstrap, Vaultwarden is the primary agent-managed credential store.
-Give each agent host its own organization User scoped to the intended collection.
+Give each agent host its own organization User scoped to the intended
+collection.
 Use the Bitwarden password-manager CLI (`bw`) against the verified private vault
 URL, with protected bootstrap credentials outside the repository. Verify account
 and collection scope before use; pin the exact item, expected identity, format,
@@ -123,7 +136,8 @@ general credential API. Local provider configuration contains references, not
 raw tokens or LUKS bytes. Protect secret files with mode `0600` and their
 directories with `0700` where practical.
 
-Procedures: [agent account and CLI setup](../RUNBOOK.md#agent-scoped-organization-accounts),
+Procedures: [agent account and CLI
+setup](../RUNBOOK.md#agent-scoped-organization-accounts),
 [credential retrieval](../RUNBOOK.md#retrieve-a-service-credential), and
 [Vaultwarden LUKS helper](../RUNBOOK.md#vaultwarden-backed-luks-unlock) and
 [LUKS key rotation](../RUNBOOK.md#rotate-an-existing-luks-unlock-key).
@@ -144,22 +158,28 @@ of the Caddyfile and Docker environment metadata. Validate through the same
 secret-loading entrypoint used by the service.
 
 Use DNS validation without public challenge ports. Verify certificate chain,
-hostname, expiry, and renewal. Keep the admin API private and disable unnecessary
+hostname, expiry, and renewal. Keep the admin API private and disable
+unnecessary
 HTTP redirects and HTTP/3 listeners according to the profile.
 
-Procedure: [private DNS and HTTPS](../RUNBOOK.md#9-configure-private-dns-and-https).
+Procedure: [private DNS and
+HTTPS](../RUNBOOK.md#9-configure-private-dns-and-https).
 
 ## Containers, maintenance, and cutovers
 
-Use supported images, persistent volumes, meaningful health checks, bounded logs,
+Use supported images, persistent volumes, meaningful health checks, bounded
+logs,
 and restart policies. Keep coupled components compatible and databases within a
-selected major. Standardize configuration under `/opt/<service>` and consistently
+selected major. Standardize configuration under `/opt/<service>` and
+consistently
 use the physical Compose directory when it is a symlink.
 
 Track the selected stable application line with guarded automatic updates at the
-configured local maintenance time; preview is an explicit choice. Require mounts,
+configured local maintenance time; preview is an explicit choice. Require
+mounts,
 prevent overlap, bound logs, check health, and retain previous images until
-acceptance. Enable OS security updates and plan compatibility-changing migrations.
+acceptance. Enable OS security updates and plan compatibility-changing
+migrations.
 A previous image does not reverse database or application-state migrations.
 
 Select backup and recovery behavior in the profile, including an intentional
@@ -168,7 +188,8 @@ state, and recheck the exact target for concurrent changes. Verify the deployed
 result. Inspect actual state after ambiguous or interrupted operations before
 retrying; preserve unrelated resources.
 
-Procedures: [container layout](../RUNBOOK.md#7-install-docker-and-lay-out-the-application),
+Procedures: [container
+layout](../RUNBOOK.md#7-install-docker-and-lay-out-the-application),
 [updates](../RUNBOOK.md#8-configure-automatic-application-updates), and
 [handoff](../RUNBOOK.md#13-handoff-and-lifecycle).
 
@@ -184,9 +205,11 @@ and browser-store details.
 
 Choose the smallest check that answers the unresolved question and reuse passing
 evidence while its inputs remain valid. Verify actual authentication, network
-exposure, persistence, reboot/unlock behavior, and updates; an HTTP health response
+exposure, persistence, reboot/unlock behavior, and updates; an HTTP health
+response
 or enabled unit alone is insufficient. Service checks extend the
 [shared acceptance procedure](../RUNBOOK.md#10-validate-the-deployment).
 Validate relevant Markdown, YAML, and shell files, run
-`./scripts/check-publication.sh`, and review tracked diffs for private identifiers
+`./scripts/check-publication.sh`, and review tracked diffs for private
+identifiers
 and deployment-state prose. Record outcomes only in ignored local records.

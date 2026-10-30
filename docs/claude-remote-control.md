@@ -17,10 +17,10 @@ host is registered merely because its unit is active.
 
 The CLI offers two different Remote Control entry points:
 
-| Command | What it registers | Use it for |
-| --- | --- | --- |
-| `claude remote-control` | The machine and working directory, as a host | A host that should appear in the app and accept new sessions |
-| `claude --remote-control` | One interactive session | Reaching a single session you started at the terminal |
+- `claude remote-control` registers the machine and working directory as a
+  host. Use it when the host should appear in the app and accept new sessions.
+- `claude --remote-control` registers one interactive session. Use it to reach
+  a session you started at the terminal.
 
 The two differ by two dashes, but only the `remote-control` subcommand
 registers a host. A supervised service that runs the `--remote-control` flag
@@ -79,7 +79,8 @@ migrated copy carries the source host's state with it. Start a migrated host
 from a fresh sign-in and do not reuse the source host's runtime registrations.
 
 Write debug logs to host-local disk, for example `%h/.cache/claude-rc-debug`,
-with mode `0700` on the directory. Avoid `/tmp` on hosts where it is a RAM-backed
+with mode `0700` on the directory. Avoid `/tmp` on hosts where it is a
+RAM-backed
 tmpfs, and avoid any synced directory, because the logs contain session
 identifiers, paths, and prompts.
 
@@ -97,9 +98,16 @@ After=network-online.target
 Type=forking
 ExecStartPre=/usr/bin/test -x %h/.local/bin/claude
 ExecStartPre=/usr/bin/test -d %h/<workspace>
-ExecStart=/usr/bin/tmux -f /dev/null -L claude-rc new-session -d -s rc -c %h/<workspace> /bin/sh -c 'umask 077; mkdir -p %h/.cache/claude-rc-debug; exec %h/.local/bin/claude remote-control --spawn=same-dir --name <host-label> --debug-file %h/.cache/claude-rc-debug/rc-$$(date +%%Y%%m%%d-%%H%%M%%S).log'
+ExecStart=/usr/bin/tmux -f /dev/null -L claude-rc new-session \
+  -d -s rc -c %h/<workspace> /bin/sh -c \
+  'umask 077; mkdir -p %h/.cache/claude-rc-debug; exec \
+  %h/.local/bin/claude remote-control --spawn=same-dir \
+  --name <host-label> --debug-file \
+  %h/.cache/claude-rc-debug/rc-$$(date +%%Y%%m%%d-%%H%%M%%S).log'
 ExecStop=-/usr/bin/tmux -L claude-rc send-keys -t rc C-c
-ExecStop=-/bin/sh -c 'for i in $(seq 30); do /usr/bin/tmux -L claude-rc has-session -t rc 2>/dev/null || exit 0; sleep 1; done; /usr/bin/tmux -L claude-rc kill-server'
+ExecStop=-/bin/sh -c 'for i in $(seq 30); do \
+  /usr/bin/tmux -L claude-rc has-session -t rc 2>/dev/null || \
+  exit 0; sleep 1; done; /usr/bin/tmux -L claude-rc kill-server'
 TimeoutStartSec=60
 TimeoutStopSec=60
 Restart=always
@@ -251,11 +259,21 @@ for the `--remote-control` flag before anything else.
 
 ## Troubleshooting checklist
 
-| Symptom | Focused checks |
-| --- | --- |
-| Unit active, host missing from the app | `ExecStart` runs `claude --remote-control` instead of `claude remote-control`. Switch to the subcommand. |
-| Start dies within about a second; `NRestarts` climbs | Read the newest debug logs. A log ending at the registration request with an empty `Error:` is a failed registration; `Restart=always` retries it. If no start holds within a few minutes, check sign-in and outbound HTTPS. |
-| Exits immediately with "Workspace not trusted" | Run `claude` once in `<workspace>` and accept the trust prompt. |
-| Ready, but zero usable capacity after a restart | The child hit `Epoch mismatch (409, reason=session_not_active)`. Stop the unit, remove `bridge-pointer.json`, and start it again. |
-| Restart loop after an upgrade | Wait for a held `InvocationID` before judging the upgrade; if none holds within the deadline, compare the new release's help and the official reference. |
-| Unit absent after reboot | Check `loginctl show-user "$USER" -p Linger` and the unit's `default.target.wants` link. |
+- **Unit active, host missing from the app:** Check whether `ExecStart`
+  runs `claude --remote-control` instead of `claude remote-control`.
+  Switch to the subcommand.
+- **Start dies within about a second; `NRestarts` climbs:** Read the newest
+  debug logs. An empty `Error:` after the registration request indicates a
+  failed registration; `Restart=always` retries it. If no start holds within
+  a few minutes, check sign-in and outbound HTTPS.
+- **Exits with "Workspace not trusted":** Run `claude` once in
+  `<workspace>` and accept the trust prompt.
+- **Ready, but zero capacity after a restart:** Check for
+  `Epoch mismatch (409, reason=session_not_active)`. Stop the unit, remove
+  `bridge-pointer.json`, and start it again.
+- **Restart loop after an upgrade:** Wait for a held `InvocationID` before
+  judging the upgrade. If none holds within the deadline, compare the new
+  release's help with the official reference.
+- **Unit absent after reboot:** Check
+  `loginctl show-user "$USER" -p Linger` and the unit's
+  `default.target.wants` link.

@@ -6,10 +6,12 @@ systemd manager and leaves the operating-system image unchanged. Replace every
 angle-bracket placeholder with a local value; do not copy deployment-specific
 identifiers into tracked documentation.
 
-Apply the [shared credential, state-protection, and verification standards](standards.md).
+Apply the [shared credential, state-protection, and verification
+standards](standards.md).
 This guide owns the per-user runtime, authentication, and systemd behavior.
 
-The official product references are [Codex remote connections](https://developers.openai.com/codex/remote-connections)
+The official product references are [Codex remote
+connections](https://developers.openai.com/codex/remote-connections)
 and the [Codex app server](https://developers.openai.com/codex/app-server).
 The `remote-control` command is version-sensitive. Verify the official
 reference and local CLI help before changing a service; use behavior confirmed
@@ -82,7 +84,8 @@ running, establish an independent destination sign-in before starting its
 service. Archive copied credentials separately from active state. Sharing a
 rotating login cache between machines can invalidate a still-running source
 session; OpenAI recommends a separate cache for each machine or serialized
-execution stream in its [account authentication guidance](https://learn.chatgpt.com/docs/auth/ci-cd-auth).
+execution stream in its [account authentication
+guidance](https://learn.chatgpt.com/docs/auth/ci-cd-auth).
 Keep source runtime registrations, pending work, and machine-specific sockets
 out of the destination's active state. Check authentication and fresh remote
 registration separately from history integrity and unit enablement.
@@ -200,7 +203,8 @@ namespace with separate authorization.
 
 ## Updates and recovery
 
-Use the owning installer's or package manager's supported update path. Before switching a
+Use the owning installer's or package manager's supported update path. Before
+switching a
 release, record the current version, keep the previous release available, and
 verify that the stable user-facing path resolves to the intended executable.
 Then restart and repeat the focused checks:
@@ -248,11 +252,16 @@ and the intended remote connection after the reboot.
 
 ## Troubleshooting checklist
 
-| Symptom | Focused checks |
-| --- | --- |
-| Unit is not enabled | Confirm the user manager, run `daemon-reload`, then enable the exact unit. |
-| Unit starts then exits | Check `Type=oneshot`, `RemainAfterExit=yes`, the executable resolver, and the release's `remote-control` help. |
-| Start times out | Confirm network readiness, the user app-server state directory, and a single non-stale control socket. |
-| Restart loop | Stop the unit, preserve the old release, inspect a redacted status/journal slice, and fix the release or unit path. |
-| Remote client cannot connect | Verify the local daemon and pairing state first; separately verify the documented client path and host network policy. |
-| Behavior changed after an update | Compare the installed release help and official references; the experimental command surface may have changed. |
+- **Unit is not enabled:** Confirm the user manager, run `daemon-reload`,
+  then enable the exact unit.
+- **Unit starts then exits:** Check `Type=oneshot`,
+  `RemainAfterExit=yes`, the executable resolver, and the release's
+  `remote-control` help.
+- **Start times out:** Confirm network readiness, the user app-server state
+  directory, and a single non-stale control socket.
+- **Restart loop:** Stop the unit, preserve the old release, inspect a redacted
+  status or journal slice, and fix the release or unit path.
+- **Remote client cannot connect:** Verify the local daemon and pairing state
+  first. Separately verify the documented client path and host network policy.
+- **Behavior changed after an update:** Compare the installed release help and
+  official references; the experimental command surface may have changed.

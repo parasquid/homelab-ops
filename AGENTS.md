@@ -29,8 +29,10 @@ per-service handoffs. A public design can state a default or optional choice;
 the local profile and handoff record which choice was made here.
 
 Before any task, read this file and `docs/standards.md`. Then read
-`AGENTS.local.md` and `inventory.local.yaml` when those ignored files are present.
-Read `RUNBOOK.md`, the selected service profile, and the matching page under `docs/services/`
+`AGENTS.local.md` and `inventory.local.yaml` when those ignored files are
+present.
+Read `RUNBOOK.md`, the selected service profile, and the matching page under
+`docs/services/`
 before infrastructure work. The local files hold deployment-specific facts and
 operator handoff; do not copy their live values into tracked files.
 
@@ -157,5 +159,6 @@ A deployment is complete only after recording and verifying:
   start after unlock, recovery keyslot, and off-VM header backup.
 - The configured update policy and the outcome of an update-path test.
 - Backup status, including an explicit statement when backups are deferred.
-- An ignored local deployment record containing versions, paths, tests, exceptions,
+- An ignored local deployment record containing versions, paths, tests,
+  exceptions,
   maintenance commands, and recovery instructions.

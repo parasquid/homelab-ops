@@ -163,16 +163,22 @@ override in Git configuration. Do not treat this client-side configuration
 error alone as a reason to switch guest administration to Proxmox.
 
 When a verified jump VM is the approved path to the Proxmox LAN address, use an
-OpenSSH `ProxyCommand` with the normal VM administrator and Proxmox administrator
+OpenSSH `ProxyCommand` with the normal VM administrator and Proxmox
+administrator
 identities. Replace every bracketed value with the values from the local
 inventory; they are placeholders here:
 
 ```bash
+proxy_command='ssh -o BatchMode=yes'
+proxy_command="$proxy_command -o StrictHostKeyChecking=yes"
+proxy_command="$proxy_command -o HostKeyAlgorithms=ssh-ed25519"
+proxy_command="$proxy_command <vm-admin>@<jump-vm> -W %h:%p"
+
 ssh \
   -o BatchMode=yes \
   -o StrictHostKeyChecking=yes \
   -o HostKeyAlgorithms=ssh-ed25519 \
-  -o 'ProxyCommand=ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o HostKeyAlgorithms=ssh-ed25519 <vm-admin>@<jump-vm> -W %h:%p' \
+  -o "ProxyCommand=$proxy_command" \
   <proxmox-admin>@<proxmox-lan-address> '<read-only-command>'
 ```
 
@@ -239,7 +245,8 @@ same input stream for a script.
    entries remain equal. This is the handoff point: perform all remaining guest
    work over SSH, not through Proxmox or the guest agent. An unchanged rerun
    must make no key-file mutation.
-6. Record exact target, account, key fingerprint, SSH bootstrap/repair method and verified
+6. Record exact target, account, key fingerprint, SSH bootstrap/repair method
+   and verified
    outcome in the ignored inventory and service handoff. Keep live identifiers,
    key material and incident history out of the tracked procedure.
 
@@ -272,9 +279,12 @@ Use Vaultwarden as the primary provider after bootstrap, following the
 An external-file provider remains supported for bootstrap or a selected recovery
 path: protect the operator-host file with mode `0600` and put only
 `LUKS_KEY_DIRECTORY` in `.env`. The
-[Vaultwarden unlock procedure](#vaultwarden-backed-luks-unlock) owns key encoding,
-item selection, and validation. Supply either provider's key over standard input;
-never put decoded bytes in `.env`, arguments, logs, the guest, or the repository.
+[Vaultwarden unlock procedure](#vaultwarden-backed-luks-unlock) owns key
+encoding,
+item selection, and validation. Supply either provider's key over standard
+input;
+never put decoded bytes in `.env`, arguments, logs, the guest, or the
+repository.
 
 Keep an independent human recovery passphrase outside Vaultwarden, protected
 and available before Vaultwarden can be reached. Do not rely on Vaultwarden to
@@ -319,7 +329,8 @@ remote unlock follows this pattern:
 
 ```bash
 ssh "${VM_ADMIN_USER}@${VM_HOST}" \
-  'sudo cryptsetup open /dev/disk/by-id/<verified-disk> service-data --key-file=-' \
+  "sudo cryptsetup open /dev/disk/by-id/<verified-disk> \
+  service-data --key-file=-" \
   < "${LUKS_KEY_FILE}"
 ```
 
@@ -332,8 +343,10 @@ protected token file on this filesystem and use the runtime file-loading
 pattern in [private DNS and HTTPS](#9-configure-private-dns-and-https).
 
 Keep automation and human recovery credentials in separate keyslots. Use the
-[existing-volume enrollment procedure](#add-an-automation-key-to-an-existing-luks-volume)
-to add a missing credential and verify both paths before accepting the deployment.
+[existing-volume enrollment
+procedure](#add-an-automation-key-to-an-existing-luks-volume)
+to add a missing credential and verify both paths before accepting the
+deployment.
 
 With remote-script unlock, unattended application recovery after a VM reboot is
 deliberately disabled. The VM and Tailscale start, but Docker, Caddy, and the
@@ -358,22 +371,26 @@ the actual assignments locally instead of assuming fixed numbers.
    enrollment. Check available guest memory and run only one key derivation at
    a time; Argon2 can consume enough memory to disrupt running applications.
 3. Generate a unique service automation key, for example 64 random bytes.
-   Store it base64-encoded in the exact scoped Vaultwarden item with its expected
+   Store it base64-encoded in the exact scoped Vaultwarden item with its
+   expected
    decoded length. Follow [credential retrieval](#retrieve-a-service-credential)
    and verify the stored value by an in-memory readback. Never reuse another
    service's key.
-4. Add the decoded key to an unused slot with `cryptsetup luksAddKey`, authorized
+4. Add the decoded key to an unused slot with `cryptsetup luksAddKey`,
+   authorized
    by the verified existing credential or, only under the conditions below, the
    active volume key from an already-open legacy volume. Supply both secrets
    through protected input streams or in-memory file descriptors, without
    writing them to the guest or placing their values in arguments. Preserve
    existing slots; use the installed version's
-   [key-enrollment options](https://manpages.debian.org/trixie/cryptsetup-bin/cryptsetup-luksAddKey.8.en.html)
+   [key-enrollment
+   options](https://manpages.debian.org/trixie/cryptsetup-bin/cryptsetup-luksAddKey.8.en.html)
    to select the intended new slot explicitly. After an interruption, inspect
    the header and test the stored candidate before retrying enrollment; preserve
    the existing vault key and resolve whether its slot was already added.
 5. Retrieve the automation key from its vault item and test that specific slot
-   with `cryptsetup open --test-passphrase`. Test the retained recovery credential
+   with `cryptsetup open --test-passphrase`. Test the retained recovery
+   credential
    separately, refresh the off-VM header copy, and verify application health.
    Record slot IDs, provider references, header location, and checks privately.
 
@@ -394,7 +411,8 @@ reference instead; that reference is not the key and must not be decoded or
 treated as a key file. A `logon` payload is intentionally unreadable to
 userspace, so stop and use the retained passphrase or another supported
 credential in that case. See the installed version's
-[key-enrollment options](https://manpages.debian.org/trixie/cryptsetup-bin/cryptsetup-luksAddKey.8.en.html).
+[key-enrollment
+options](https://manpages.debian.org/trixie/cryptsetup-bin/cryptsetup-luksAddKey.8.en.html).
 
 1. Verify the device, LUKS UUID, active mapping, root/mount ancestry, and slot
    list independently. Confirm the retained passphrase is known to work, using
@@ -440,7 +458,11 @@ credential in that case. See the installed version's
    if len(fields) < 5 or fields[2] != "crypt":
        raise SystemExit(1)
    key = fields[4]
-   if not key or len(key) % 2 or any(c not in "0123456789abcdefABCDEF" for c in key):
+   if (
+       not key
+       or len(key) % 2
+       or any(c not in "0123456789abcdefABCDEF" for c in key)
+   ):
        raise SystemExit(1)
    print(len(key) * 4)')
    exec 3< <(
@@ -454,7 +476,11 @@ credential in that case. See the installed version's
    if len(fields) < 5 or fields[2] != "crypt":
        raise SystemExit(1)
    key = fields[4]
-   if not key or len(key) % 2 or any(c not in "0123456789abcdefABCDEF" for c in key):
+   if (
+       not key
+       or len(key) % 2
+       or any(c not in "0123456789abcdefABCDEF" for c in key)
+   ):
        raise SystemExit(1)
    sys.stdout.buffer.write(bytes.fromhex(key))'
    )
@@ -534,7 +560,8 @@ the filesystem. If ext4 is directly on the mapper, grow that filesystem without
 inventing an LVM layer. Use the authorized key over standard input for encrypted
 operations; do not format an existing disk as an expansion step.
 
-Check `lsblk`, `cryptsetup status`, `pvs`, `lvs`, `findmnt`, and `df` as applicable.
+Check `lsblk`, `cryptsetup status`, `pvs`, `lvs`, `findmnt`, and `df` as
+applicable.
 A larger virtual disk alone does not expand its guest filesystem. Verify the
 application's final mount and write path before declaring capacity available.
 
@@ -551,8 +578,10 @@ which defaults to `/var/lib/containerd`. Configure that root separately in
 `/etc/containerd/config.toml` and verify both effective storage paths with
 mount checks. Monitor free blocks and inodes on both filesystems; extracted
 image layers can consume many inodes as well as disk space. See the
-[Docker data-directory guide](https://docs.docker.com/engine/daemon/#daemon-data-directory)
-and [containerd configuration reference](https://containerd.io/docs/main/man/containerd-config.toml.5/).
+[Docker data-directory
+guide](https://docs.docker.com/engine/daemon/#daemon-data-directory)
+and [containerd configuration
+reference](https://containerd.io/docs/main/man/containerd-config.toml.5/).
 For an existing installation, plan a stopped-service migration and preserve
 its old store and configuration until health and persistence checks pass.
 Never remove raw snapshot directories as a capacity fix.
@@ -674,7 +703,8 @@ and database-major upgrades manually.
 ## 9. Configure private DNS and HTTPS
 
 Create a DNS-only Cloudflare `A` record for the service hostname pointing to the
-VM's Tailscale IPv4 address. Check for an existing record first. Do not overwrite
+VM's Tailscale IPv4 address. Check for an existing record first. Do not
+overwrite
 or repurpose an unrelated hostname.
 
 For another private web UI on the same VM, use an auxiliary hostname in the
@@ -715,23 +745,24 @@ host-key-verified encrypted connection; verify file equality and permissions
 without displaying token bytes. Stop if the purpose, destination, encryption,
 or file protection cannot be verified. Ask for specific approval only when no
 standing authorization covers the verified operation. Keep site-specific
-authorization terms in the ignored local instructions, not this public reference.
+authorization terms in the ignored local instructions, not this public
+reference.
 
 The private-site pattern is:
 
 ```caddyfile
 {
-	auto_https disable_redirects
-	email {$CADDY_ACME_EMAIL}
-	acme_ca {$CADDY_ACME_CA}
+ auto_https disable_redirects
+ email {$CADDY_ACME_EMAIL}
+ acme_ca {$CADDY_ACME_CA}
 }
 
 {$SERVICE_DOMAIN} {
-	bind {$TAILSCALE_IPV4}
-	tls {
-		dns cloudflare {env.CLOUDFLARE_API_TOKEN}
-	}
-	reverse_proxy 127.0.0.1:{$APPLICATION_PORT}
+ bind {$TAILSCALE_IPV4}
+ tls {
+  dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+ }
+ reverse_proxy 127.0.0.1:{$APPLICATION_PORT}
 }
 ```
 
@@ -773,7 +804,8 @@ Run and record these acceptance checks:
 7. Application and database ports are not reachable through unintended LAN or
    public addresses.
 8. Listener inspection matches the exposure profile.
-9. A controlled VM reboot restores Tailscale, Docker, Caddy, and the application.
+9. A controlled VM reboot restores Tailscale, Docker, Caddy, and the
+   application.
 10. The automatic update path runs without exposing secrets and leaves the
     application healthy.
 11. Backup status and restore instructions are documented, including when
@@ -821,7 +853,8 @@ Vaultwarden follows the private VM pattern with one additional internal service:
 
 Use this one-time bootstrap sequence with the protected environment as the
 authoritative source. It follows the upstream [`SIGNUPS_*` and
-`INVITATIONS_ALLOWED` settings](https://github.com/dani-garcia/vaultwarden/blob/main/.env.template):
+`INVITATIONS_ALLOWED`
+settings](https://github.com/dani-garcia/vaultwarden/blob/main/.env.template):
 
 1. Set `SIGNUPS_ALLOWED=true`, `SIGNUPS_VERIFY=true`, and an empty
    `SIGNUPS_DOMAINS_WHITELIST=`. Keep `INVITATIONS_ALLOWED=true`.
@@ -888,14 +921,16 @@ until the operator explicitly approves their removal.
 ### Retrieve a service credential
 
 Use the [Bitwarden password-manager CLI](https://bitwarden.com/help/cli/) with
-the verified self-hosted Vaultwarden URL and the scoped agent account established
+the verified self-hosted Vaultwarden URL and the scoped agent account
+established
 above. Keep the bootstrap credential outside the repository; use a protected
 file or password environment mechanism instead of a password argument. Capture
 the unlock result in memory without printing it, and keep the session out of
 command arguments and logs.
 
 1. Read the protected provider configuration: server, account, collection, exact
-   item reference, expected item name, field, encoding, and intended destination.
+   item reference, expected item name, field, encoding, and intended
+   destination.
    Reuse an applicable standing credential-use grant; confirm the service and
    destination before transmitting any value.
 2. Check CLI server and account identity, unlock without exposing the session,
@@ -982,7 +1017,8 @@ Do not make Codex remote-control startup depend on the cache: an encrypted
 Vaultwarden VM may remain locked after reboot.
 
 Set the background refresh interval explicitly; the reference header cache uses
-15 minutes. After a token rotation, sync the CLI vault, restart the cache service,
+15 minutes. After a token rotation, sync the CLI vault, restart the cache
+service,
 and reconnect its client so it cannot continue using an old in-memory header.
 Verify the new credential without printing the header.
 
@@ -1121,39 +1157,134 @@ of them.
 
 ## 14. Mirror n8n workflow definitions to private Git
 
-This procedure backs up workflow definitions only. It is a useful application-level recovery layer, not a backup of the n8n database, VM, application data, credentials, binary files, or execution history. For full-instance recovery, follow n8n's [backup and restore guide](https://docs.n8n.io/deploy/host-n8n/keep-n8n-running/backup-and-restore/). Follow the [n8n service note](docs/services/n8n.md#workflow-definition-git-backups) alongside this runbook.
+This procedure backs up workflow definitions only. It is a useful
+application-level recovery layer, not a backup of the n8n database, VM,
+application data, credentials, binary files, or execution history. For
+full-instance recovery, follow n8n's [backup and restore
+guide](https://docs.n8n.io/deploy/host-n8n/keep-n8n-running/backup-and-restore/).
+Follow the [n8n service
+note](docs/services/n8n.md#workflow-definition-git-backups) alongside this
+runbook.
 
 ### Prerequisites
 
-- Create a private destination repository and select its default branch. Use a dedicated GitHub fine-grained token restricted to that repository with [Contents write permission](https://docs.github.com/en/rest/authentication/permissions-required-for-fine-grained-personal-access-tokens). Do not reuse a broad interactive GitHub CLI token for the workflow.
-- Create a separate n8n Public REST API key through the authenticated n8n settings UI. Current n8n versions may label this page “n8n API” or “API keys”; the Public REST API does not provide a key-creation endpoint. On self-hosted Community, each Public API key has full account access, so treat it as a high-privilege credential even though the backup workflow only reads definitions. See the [n8n API authentication guide](https://docs.n8n.io/connect/n8n-api/authentication/).
-- Store each token as its own encrypted n8n header-auth credential. The n8n workflow uses the Public API credential for n8n API calls and the GitHub credential for repository calls. Never put either value in workflow parameters, exported JSON, code, logs, or execution data. Do not use the instance-level MCP bearer as a substitute for the Public API key.
-- Confirm that the n8n runtime can reach its Public API endpoint and GitHub's REST API, and that the built-in Schedule Trigger, HTTP Request, and Code nodes are available. From inside the n8n container, use its internal Compose service name and port for the self-API call; do not broaden the host listener for the backup. If SSRF protection blocks that fixed private hostname, allow only the exact service hostname in `N8N_SSRF_ALLOWED_HOSTNAMES`. That exception bypasses blocked-IP ranges, so keep it only while the backup workflow needs it; see the [n8n SSRF guidance](docs/services/n8n.md#restricted-url-fetch-helper). No third-party community node is required.
-- Ensure workflow definitions contain no hard-coded secrets, and review each new or changed definition before it can enter the backup. Pattern-based secret scans can help but do not prove that a definition contains no secrets. Treat the private repository as sensitive because definitions can reveal internal logic, service names, and credential references.
+- Create a private destination repository and select its default branch. Use a
+  dedicated GitHub fine-grained token restricted to that repository with
+  [Contents write
+  permission](https://docs.github.com/en/rest/authentication/permissions-required-for-fine-grained-personal-access-tokens).
+  Do not reuse a broad interactive GitHub CLI token for the workflow.
+- Create a separate n8n Public REST API key through the authenticated n8n
+  settings UI. Current n8n versions may label this page “n8n API” or “API keys”;
+  the Public REST API does not provide a key-creation endpoint. On self-hosted
+  Community, each Public API key has full account access, so treat it as a
+  high-privilege credential even though the backup workflow only reads
+  definitions. See the [n8n API authentication
+  guide](https://docs.n8n.io/connect/n8n-api/authentication/).
+- Store each token as its own encrypted n8n header-auth credential. The n8n
+  workflow uses the Public API credential for n8n API calls and the GitHub
+  credential for repository calls. Never put either value in workflow
+  parameters, exported JSON, code, logs, or execution data. Do not use the
+  instance-level MCP bearer as a substitute for the Public API key.
+- Confirm that the n8n runtime can reach its Public API endpoint and GitHub's
+  REST API, and that the built-in Schedule Trigger, HTTP Request, and Code nodes
+  are available. From inside the n8n container, use its internal Compose service
+  name and port for the self-API call; do not broaden the host listener for the
+  backup. If SSRF protection blocks that fixed private hostname, allow only the
+  exact service hostname in `N8N_SSRF_ALLOWED_HOSTNAMES`. That exception
+  bypasses blocked-IP ranges, so keep it only while the backup workflow needs
+  it; see the [n8n SSRF
+  guidance](docs/services/n8n.md#restricted-url-fetch-helper). No third-party
+  community node is required.
+- Ensure workflow definitions contain no hard-coded secrets, and review each new
+  or changed definition before it can enter the backup. Pattern-based secret
+  scans can help but do not prove that a definition contains no secrets. Treat
+  the private repository as sensitive because definitions can reveal internal
+  logic, service names, and credential references.
 
 ### Build and first acceptance
 
-1. Create the backup workflow as an inactive draft. Configure a schedule and timezone, the two separate credentials, and execution settings that retain no success, error, manual, or progress data where supported. Keep Available in MCP off unless an operator specifically needs MCP execution.
-2. Read the complete workflow list from the Public REST API. Use cursor pagination, follow every next-cursor value until the API returns no next cursor, and fetch each listed workflow's full definition. Include active, inactive, and archived workflows. The maximum page size is documented in the [pagination guide](https://docs.n8n.io/connect/n8n-api/pagination/).
-3. Fail closed if a page is missing, truncated, repeated, or malformed; if workflow IDs are duplicated; or if any detail response is missing or disagrees with the list. Do not write a partial manifest or delete repository files when inventory completeness is uncertain.
-4. Normalize each definition into the format accepted by the selected n8n import method; do not store raw Public API responses. Keep one canonical file at workflows/<workflow-id>.json and a manifest at the repository root with the complete workflow ID set and active/archived state. Strip read-only API metadata such as active/archive flags, timestamps, version IDs, sharing records, and active-version snapshots from the import file. Exclude credential secret values, executions, pinned data, workflow static data, and binaries. Preserve credential references only when needed to reconnect the workflow.
-5. Compare the manifest's unique ID set with the fully paginated inventory, and confirm exactly one canonical file per current ID. Confirm that archived workflows are present. Verify the repository is private before the first write.
-6. Run the workflow once manually. Publish each complete file set and manifest together in one Git commit. Use GitHub's [Git trees](https://docs.github.com/en/rest/git/trees), [commits](https://docs.github.com/en/rest/git/commits), and [references](https://docs.github.com/en/rest/git/refs) endpoints to build a tree and commit against the observed branch tip, then update the branch without force; if the tip changes, stop and rebuild against the new tip. Do not write each file as a separate Contents API commit, which can leave a partial snapshot after a mid-run failure. If execution history is disabled, a missing manual execution record is expected; verify the Git commit and its contents instead. If the backup is already current and creates no commit, compare the manifest and canonical file set directly with the complete live inventory.
-7. Only after the complete backup is verified, remove dated or duplicate snapshot files from the current repository tree. Git history retains earlier versions. Keep the cleanup in one normal commit; never force-push or rewrite history.
-8. Publish the scheduled workflow only after acceptance. Run it once against the published state or wait for its scheduled run, then confirm the manifest includes the backup workflow itself with its active state and that all IDs still match. Keep Available in MCP off afterward. If native MCP access is needed for a one-time test, change the setting through the workflow settings UI, then restore it and verify the final setting there.
+1. Create the backup workflow as an inactive draft. Configure a schedule and
+   timezone, the two separate credentials, and execution settings that retain no
+   success, error, manual, or progress data where supported. Keep Available in
+   MCP off unless an operator specifically needs MCP execution.
+2. Read the complete workflow list from the Public REST API. Use cursor
+   pagination, follow every next-cursor value until the API returns no next
+   cursor, and fetch each listed workflow's full definition. Include active,
+   inactive, and archived workflows. The maximum page size is documented in the
+   [pagination guide](https://docs.n8n.io/connect/n8n-api/pagination/).
+3. Fail closed if a page is missing, truncated, repeated, or malformed; if
+   workflow IDs are duplicated; or if any detail response is missing or
+   disagrees with the list. Do not write a partial manifest or delete repository
+   files when inventory completeness is uncertain.
+4. Normalize each definition into the format accepted by the selected n8n import
+   method; do not store raw Public API responses. Keep one canonical file at
+   `workflows/<workflow-id>.json` and a manifest at the repository root with the
+   complete workflow ID set and active/archived state. Strip read-only API
+   metadata such as active/archive flags, timestamps, version IDs, sharing
+   records, and active-version snapshots from the import file. Exclude
+   credential secret values, executions, pinned data, workflow static data, and
+   binaries. Preserve credential references only when needed to reconnect the
+   workflow.
+5. Compare the manifest's unique ID set with the fully paginated inventory, and
+   confirm exactly one canonical file per current ID. Confirm that archived
+   workflows are present. Verify the repository is private before the first
+   write.
+6. Run the workflow once manually. Publish each complete file set and manifest
+   together in one Git commit. Use GitHub's [Git
+   trees](https://docs.github.com/en/rest/git/trees),
+   [commits](https://docs.github.com/en/rest/git/commits), and
+   [references](https://docs.github.com/en/rest/git/refs) endpoints to build a
+   tree and commit against the observed branch tip, then update the branch
+   without force; if the tip changes, stop and rebuild against the new tip. Do
+   not write each file as a separate Contents API commit, which can leave a
+   partial snapshot after a mid-run failure. If execution history is disabled, a
+   missing manual execution record is expected; verify the Git commit and its
+   contents instead. If the backup is already current and creates no commit,
+   compare the manifest and canonical file set directly with the complete live
+   inventory.
+7. Only after the complete backup is verified, remove dated or duplicate
+   snapshot files from the current repository tree. Git history retains earlier
+   versions. Keep the cleanup in one normal commit; never force-push or rewrite
+   history.
+8. Publish the scheduled workflow only after acceptance. Run it once against the
+   published state or wait for its scheduled run, then confirm the manifest
+   includes the backup workflow itself with its active state and that all IDs
+   still match. Keep Available in MCP off afterward. If native MCP access is
+   needed for a one-time test, change the setting through the workflow settings
+   UI, then restore it and verify the final setting there.
 
 ### Routine operation and failures
 
-A no-change scheduled run may create no commit. Verify the current manifest and canonical files against a fresh complete inventory rather than requiring a new commit every time. After a workflow is added, archived, restored, or deleted, confirm that the next complete run updates the manifest and current file set.
+A no-change scheduled run may create no commit. Verify the current manifest and
+canonical files against a fresh complete inventory rather than requiring a new
+commit every time. After a workflow is added, archived, restored, or deleted,
+confirm that the next complete run updates the manifest and current file set.
 
-Distinguish n8n Public API authentication errors from GitHub authentication or permission errors. An incomplete page, failed workflow-detail read, truncated Git tree, branch race, or GitHub rejection must not be treated as a complete backup. The workflow should compare the current branch before updating it and must not force-update the branch. For an ambiguous write, inspect the repository's current commit and manifest before considering another run; do not launch a duplicate execution just because a status read failed.
+Distinguish n8n Public API authentication errors from GitHub authentication or
+permission errors. An incomplete page, failed workflow-detail read, truncated
+Git tree, branch race, or GitHub rejection must not be treated as a complete
+backup. The workflow should compare the current branch before updating it and
+must not force-update the branch. For an ambiguous write, inspect the
+repository's current commit and manifest before considering another run; do not
+launch a duplicate execution just because a status read failed.
 
 ### Restore
 
-1. Clone the private repository and select the commit to restore. Review the manifest and workflow JSON files, and check for ID collisions in the exact target instance before importing. The n8n Server CLI can overwrite workflows with matching IDs.
-2. Import definitions using a supported workflow-import method as inactive workflows. Recreate credentials from the approved secret store and map each credential reference to the target instance's credential. The repository does not contain secret values, so it cannot restore credentials by itself.
-3. If a workflow depends on `staticData` for a cursor or other persisted state, restore or reinitialize that state through its separate protected recovery procedure and account for replay before activation. This Git backup excludes `staticData`.
-4. Validate the imported workflows and their dependencies before publishing or enabling schedules. Restore the n8n database, VM, binary data, and other application data through their separate backup procedures.
+1. Clone the private repository and select the commit to restore. Review the
+   manifest and workflow JSON files, and check for ID collisions in the exact
+   target instance before importing. The n8n Server CLI can overwrite workflows
+   with matching IDs.
+2. Import definitions using a supported workflow-import method as inactive
+   workflows. Recreate credentials from the approved secret store and map each
+   credential reference to the target instance's credential. The repository does
+   not contain secret values, so it cannot restore credentials by itself.
+3. If a workflow depends on `staticData` for a cursor or other persisted state,
+   restore or reinitialize that state through its separate protected recovery
+   procedure and account for replay before activation. This Git backup excludes
+   `staticData`.
+4. Validate the imported workflows and their dependencies before publishing or
+   enabling schedules. Restore the n8n database, VM, binary data, and other
+   application data through their separate backup procedures.
 
 ## Workstation-local rootless Quadlets
 
@@ -1239,6 +1370,9 @@ Remove only this route with:
 sudo tailscale serve --bg --http=11434 off
 ```
 
-See the [Tailscale Serve CLI](https://tailscale.com/docs/reference/tailscale-cli/serve),
-[Tailscale security guidance](https://tailscale.com/docs/reference/best-practices/security),
-and [HTTPS certificate setup](https://tailscale.com/docs/how-to/set-up-https-certificates).
+See the [Tailscale Serve
+CLI](https://tailscale.com/docs/reference/tailscale-cli/serve),
+[Tailscale security
+guidance](https://tailscale.com/docs/reference/best-practices/security),
+and [HTTPS certificate
+setup](https://tailscale.com/docs/how-to/set-up-https-certificates).
