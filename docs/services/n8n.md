@@ -17,8 +17,9 @@ profile; this reference selects the shared guest-LUKS data pattern.
   [credential provider](../../RUNBOOK.md#retrieve-a-service-credential) for
   agent-managed secrets after bootstrap.
 
-Use the [shared access and key-recovery procedure](../../RUNBOOK.md#recover-a-vms-approved-openssh-key-through-proxmox)
-when the guest rejects the approved workstation key.
+If direct SSH is unavailable, use the [shared SSH bootstrap and repair procedure](../../RUNBOOK.md#establish-or-repair-direct-vm-ssh-through-proxmox)
+only to create or provision the VM, or to fix the prerequisites for direct SSH;
+then perform all n8n guest administration over direct SSH.
 
 Private-only access means workflows can call external services, but public
 services cannot call n8n webhooks unless a separate, explicitly public ingress
@@ -38,6 +39,12 @@ design is added.
 Use n8n's current `N8N_WEBHOOK_URL` environment variable for the HTTPS webhook
 base URL presented to tailnet clients. Keep the editor URL and protocol
 settings aligned with the same private HTTPS hostname.
+
+## Code-node module allowlists with external runners
+
+The `n8nio/runners` launcher passes environment values to isolated JavaScript tasks through `env-overrides` in its task-runner configuration. Setting `NODE_FUNCTION_ALLOW_BUILTIN` only on the runner container does not guarantee that the JavaScript worker receives it. Mount the configuration read-only at `/etc/n8n-task-runners.json`, preserve its existing entries, and allowlist only the exact built-ins a Code node needs. For a `URL` fallback, keep the JavaScript allowlist limited to the existing modules plus `url`; do not use `*`. Verify the actual Code node with one bounded manual probe after changing the launcher configuration.
+
+See n8n's [task runner configuration](https://docs.n8n.io/deploy/host-n8n/configure-n8n/set-up-task-runners/) and [Code node module allowlist](https://docs.n8n.io/deploy/host-n8n/configure-n8n/basic-configuration/configuration-examples/enable-modules-in-code-node/).
 
 ## Private static operator portal
 
@@ -78,6 +85,15 @@ well, so direct webhook requests cannot forge the portal route. The marker
 distinguishes the configured Caddy route; it is not an operator identity or a
 secret. Keep the n8n port loopback-only and have each portal workflow require
 the marker before processing a request.
+
+When Tailscale `nginx-auth` supplies a trusted portal identity, pass the actual
+peer address and port to its Unix socket through Caddy `forward_auth`. Copy only
+the verified identity header into the request sent to the matching webhook.
+Restrict socket permissions to the Caddy process: the auth service accepts the
+peer address as request metadata, so other local processes must not be able to
+query it. For a root Caddy container using host networking, a root-owned mode
+`0600` socket is suitable; otherwise grant access only to a dedicated proxy
+identity. Test that an unprivileged local process cannot connect.
 
 Keep reads on GET and mutations on POST. For every mutation, require the exact
 portal `Origin`, `application/json`, and a custom request header; reject absent
@@ -228,6 +244,21 @@ rotation, and secret-safe verification. Keep write-capable tools behind the
 client's approval prompt. Verify authentication and discovery of at least one
 workflow deliberately exposed through MCP.
 
+### Workflow-definition Git backups
+
+A scheduled workflow can mirror definitions for the entire n8n instance to a private Git repository. It must cover active, inactive, and archived workflows, including workflows outside the current MCP catalog. The MCP catalog is a tool-visibility list, not a complete backup inventory.
+
+See the [n8n workflow backup runbook](../../RUNBOOK.md#14-mirror-n8n-workflow-definitions-to-private-git) for prerequisites, acceptance, recovery, and restore steps.
+
+Use separate n8n credentials for the Public REST API and GitHub. On self-hosted Community, Public REST API keys have full account access and cannot be limited to workflow reads. Keep the key in an encrypted n8n credential, treat it as a high-privilege credential, and do not reuse the user-bound MCP bearer. Use a GitHub fine-grained token limited to the destination private repository with Contents write permission.
+
+The n8n runtime must reach its own Public API endpoint and the GitHub REST API. Follow cursor pagination through the final page, fetch details for every listed workflow, and confirm archived coverage before treating a backup as complete. The [n8n pagination guide](https://docs.n8n.io/connect/n8n-api/pagination/) documents cursor-based pagination and page limits.
+
+Keep one current JSON definition per workflow ID and a manifest of the complete inventory. Include active and archived state. Do not retain dated duplicate exports in the current tree; use Git history for prior versions, and prune older snapshots only after a complete inventory and matching canonical file set have been verified.
+
+Exports may contain internal workflow logic, names, and credential references, so keep the destination private. They must not contain credential values, execution records, pinned or static execution data, or binary data. Check for hard-coded secrets before the first backup. Set the backup workflow to retain no execution data where the n8n version permits it; when manual execution history is disabled, verify completion from the Git commit and manifest rather than expecting an execution-history row.
+
+Keep the workflow's Available in MCP setting off unless a client needs to operate it. Change and verify that setting in the n8n workflow settings UI; do not assume an MCP workflow update changes it.
 ### Codex discovery timing and recovery
 
 Follow the [shared MCP discovery and runtime-restart procedure](../../RUNBOOK.md#12-configure-optional-mcp-discovery-for-agent-clients).

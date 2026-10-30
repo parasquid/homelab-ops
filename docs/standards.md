@@ -18,8 +18,9 @@ user-manager linger alone does not prevent suspend.
 | Document | Owns |
 | --- | --- |
 | This page | Shared requirements and canonical procedure links. |
-| [RUNBOOK.md](../RUNBOOK.md) | Provisioning, access, encryption, credentials, HTTPS, updates, and acceptance procedures. |
+| [RUNBOOK.md](../RUNBOOK.md) | Provisioning, access, encryption, credentials, HTTPS, updates, acceptance, and workstation Quadlet lifecycle procedures. |
 | [Remote host availability](remote-host-availability.md) | Sleep policy and persistence checks for unattended remote execution hosts. |
+| [Local AI workstation guide](local-ai.md) | Workstation-local inference, hybrid GPU routing, and model-service checks. |
 | [Service guides](services/README.md) and topic guides | Application behavior, integrations, exceptions, and additional checks; link shared procedures instead of copying them. |
 | Local profile | Selected resources, release line, exposure, encryption, and recovery choices. |
 | Ignored inventory and handoff | Live identifiers, versions, decisions, audit findings, results, maintenance commands, recovery references, and pending work. |
@@ -38,27 +39,29 @@ selecting resources; preserve existing services. Treat Proxmox and its guests
 as separate systems with their own approved administrators.
 
 Install the requesting workstation's approved public key for the guest
-administrator. Use cloud-init for new guests and the authenticated Proxmox
-management route with the guest agent for existing-key recovery. The Proxmox
-API or node CLI can carry those calls. Preserve existing keys; never transfer
-a workstation private key. The guest agent is not SSH authentication.
+administrator. Use cloud-init for new guests. Use the authenticated Proxmox
+management route and guest agent only to create, bootstrap, or provision a VM,
+or to establish or repair prerequisites for direct SSH when it is not yet
+available. Preserve existing keys; never transfer a workstation private key.
+The guest agent is not SSH authentication.
 
-For routine VM administration, connect from the workstation directly to the
-guest's verified Tailscale IP or hostname with OpenSSH. Use the Proxmox node as
-a separate management hop only when a Proxmox-side operation is needed.
-Run `qm` on the authenticated Proxmox node; the command after the `--`
-separator in `qm guest exec <VMID> -- ...` runs inside the VM. For guest
-commands that consume protected input, use `--pass-stdin 1` and keep the
-command itself in arguments.
+For all routine VM administration, connect from the workstation directly to
+the guest's verified Tailscale IP or hostname with OpenSSH. If direct SSH is
+unavailable, use Proxmox/QEMU Guest Agent only for the setup or repair needed
+to restore that direct route. Verify strict key-only SSH from the workstation
+before any other guest work, then continue over SSH. Do not use Proxmox or the
+guest agent as a routine alternate path for guest commands.
 
-Use key-only OpenSSH to the verified tailnet IP or hostname, with strict
-host-key checks, a locked administrator password, and passwordless sudo.
-Tailscale supplies the VPN; disable Tailscale SSH in the guest unless explicitly
-selected. Verify login and sudo after provisioning or recovery.
+Use key-only OpenSSH with strict host-key checks, a locked administrator
+password, and passwordless sudo. Obtain missing host keys through a trusted
+path and compare their fingerprints before adding them to `known_hosts`;
+never accept an unverified key or weaken checking. Tailscale supplies the VPN;
+disable Tailscale SSH in the guest unless explicitly selected. Verify login
+and sudo after provisioning or SSH repair.
 
 Procedures: [VM creation](../RUNBOOK.md#4-create-the-vm),
 [VM access](../RUNBOOK.md#5-configure-vm-access), and
-[approved-key recovery](../RUNBOOK.md#recover-a-vms-approved-openssh-key-through-proxmox).
+[direct SSH bootstrap or repair](../RUNBOOK.md#establish-or-repair-direct-vm-ssh-through-proxmox).
 
 ## Storage and encryption
 

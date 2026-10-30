@@ -50,17 +50,22 @@ either documentation layer.
 ## Access model
 
 - Treat the Proxmox node and its VMs as different systems.
-- Connect to the Proxmox node using `PROXMOX_ADMIN_USER` from `.env`.
-- Connect to VMs using `VM_ADMIN_USER` from `.env`. The VM administrator has
-  passwordless sudo.
-- Use the QEMU Guest Agent for Proxmox-side provisioning, status, and recovery.
-  It is not an SSH authentication mechanism.
-- When a managed VM rejects its administrator's approved SSH key, check the
-  authenticated Proxmox management route and use the runbook's guest-agent key
-  recovery procedure when the requested work already authorizes that key and
-  account. A failed guest SSH login does not prove that Proxmox recovery is
-  unavailable. Preserve existing authorized keys and verify strict SSH login
-  afterward.
+- Connect to VMs directly over OpenSSH as `VM_ADMIN_USER` from `.env` for all
+  routine guest administration. After direct SSH works, continue all guest
+  work over SSH; do not use Proxmox or QEMU Guest Agent as a routine or
+  alternate guest command channel. The VM administrator has passwordless sudo.
+- Use Proxmox and the QEMU Guest Agent only to create, bootstrap, or provision
+  a VM, or to establish or repair prerequisites for direct SSH (for example,
+  retrieving a trusted host key or adding the already-approved public key).
+  Make only the changes needed to restore SSH, then verify strict direct SSH
+  from the workstation before doing any other guest work.
+- Never accept an unverified host key or weaken host-key checking. If the key
+  is missing from `known_hosts`, obtain it through a trusted path and compare
+  its fingerprint to a trusted reference before adding it. Preserve existing
+  authorized keys when repairing public-key authentication.
+- Connect to the Proxmox node as `PROXMOX_ADMIN_USER` from `.env` only for
+  Proxmox management, VM creation/provisioning, or the SSH bootstrap/repair
+  described above.
 - Version 1 supports VMs only. Do not silently substitute an LXC container.
 
 ## SSH execution environment

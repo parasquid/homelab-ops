@@ -7,6 +7,8 @@ and add application-specific choices rather than copying these steps.
 This runbook describes the default path for deploying one private service in a
 dedicated Proxmox VM. The service profile is authoritative for sizing and
 exceptions. Values from the local `.env` supply site-specific configuration.
+The workstation-local Quadlet procedure at the end covers user-owned desktop
+tools separately and does not change this VM deployment path.
 The matching page under `docs/services/` teaches the reference design choices,
 their consequences, and failure modes that another operator can avoid. Record
 the choices and results for this site only in ignored local files.
@@ -113,10 +115,19 @@ size and verify time synchronization and timezone.
 
 Install Tailscale from its official repository and enroll the VM. Keep Tailscale
 SSH disabled; use Tailscale as the private network path to the VM's OpenSSH
-server. For routine administration, connect from the workstation directly to
-the guest's verified Tailscale IP or hostname as `VM_ADMIN_USER`. Connect to the
-Proxmox node separately as `PROXMOX_ADMIN_USER` only for Proxmox management or
-guest-agent recovery. Interactive enrollment is acceptable; surface the
+server. For routine administration, connect directly from the workstation to
+the guest's verified Tailscale IP or hostname as `VM_ADMIN_USER`. Once direct
+SSH works, use SSH for all guest work. Do not use Proxmox or the QEMU Guest
+Agent as a routine or alternate guest command channel.
+
+Use Proxmox and the guest agent only to create, bootstrap, or provision a VM,
+or to establish or repair prerequisites for direct SSH. If SSH is not working,
+make the smallest required repair, then verify strict direct SSH from the
+workstation before proceeding with any other guest administration. This can
+include retrieving a host key through a trusted path, adding the already
+approved public key while preserving existing entries, or correcting the VM's
+SSH/network prerequisites. Do not use an unverified host key or weaken
+host-key checking. Interactive enrollment is acceptable; surface the
 authorization URL to the operator. An automated authentication key must be
 supplied through a protected local mechanism and must not appear in output.
 
@@ -126,20 +137,28 @@ the OpenSSH host key is known through a trusted path such as the guest agent.
 Disable Tailscale SSH on the VM with `tailscale set --ssh=false`, then verify a
 key-only OpenSSH login through its tailnet hostname. Refresh the client's
 `known_hosts` entry only after matching the observed host key to the trusted
-key. If disabling Tailscale SSH from a Tailscale SSH session, its CLI may require
-`--accept-risk=lose-ssh` and will disconnect that session.
+key. If disabling Tailscale SSH from a Tailscale SSH session, its CLI may
+require `--accept-risk=lose-ssh` and will disconnect that session.
 
 Verify login as `VM_ADMIN_USER` and verify passwordless sudo. Direct root login
-inside the VM is a recovery path rather than the standard administration path.
-The Proxmox node continues to use its own administrator from `.env`.
+inside the VM is not the standard administration path. Connect to the Proxmox
+node as `PROXMOX_ADMIN_USER` only for Proxmox management, VM lifecycle work, or
+the SSH bootstrap/repair described above.
 
 ### OpenSSH fallback for a restricted execution environment
 
-If a sandboxed SSH client fails before connecting because a system SSH
-configuration file appears to have unsafe ownership or permissions, do not
-change that system file. For a read-only check, use an explicitly permitted
-outside-sandbox route when the active session provides one. If that route is
-unavailable, report the check as blocked rather than weakening SSH checks.
+If a sandboxed SSH or Git operation fails because a system SSH configuration
+file appears to have unsafe ownership or permissions, do not change ownership
+or permissions of that system file. Verify the same read-only operation outside
+the sandbox only when the active session explicitly provides and permits that
+route. If it is unavailable, retry the individual direct SSH command with
+`ssh -F /dev/null`, strict host-key checking, and any previously approved
+identity or connection options supplied explicitly. Use an already verified
+known-hosts entry; never accept an unverified key or disable strict checking.
+For Git over SSH, use a per-command `GIT_SSH_COMMAND` with `-F /dev/null` and
+strict host-key checking when the remote works that way; do not save the
+override in Git configuration. Do not treat this client-side configuration
+error alone as a reason to switch guest administration to Proxmox.
 
 When a verified jump VM is the approved path to the Proxmox LAN address, use an
 OpenSSH `ProxyCommand` with the normal VM administrator and Proxmox administrator
@@ -166,18 +185,20 @@ gate, but does not bypass OpenSSH host-key verification. Do not use
 `StrictHostKeyChecking=no`, accept an unverified key, or alter system SSH
 configuration ownership to work around the sandbox error.
 
-For a VM reachable only from the Proxmox node, chain another OpenSSH TCP
-forward from Proxmox to that VM's private SSH address. Verify and pin each
-intermediate and final host key independently, and keep strict host-key
-checking enabled on every connection.
+Do not use Proxmox as a network jump to run routine guest commands. If direct
+SSH to a VM is unavailable, use the authorized Proxmox/guest-agent route only
+to repair the SSH or network prerequisites for direct access, verify strict
+SSH from the workstation, and then continue over direct SSH. If a VM's network
+policy blocks the direct route, repair that prerequisite during provisioning;
+do not keep Proxmox as the guest command path.
 
-### Recover a VM's approved OpenSSH key through Proxmox
+### Establish or repair direct VM SSH through Proxmox
 
-When a managed VM rejects public-key authentication, check the authenticated
-Proxmox management route independently. The QEMU Guest Agent can inspect and
-repair the VM administrator's authorized key without an SSH login to the VM.
-Use this route when the requested operation already authorizes that exact
-administrator and public key.
+Use this procedure only to establish or repair direct SSH access when the VM
+cannot yet be administered over SSH, or while creating and provisioning a VM.
+The QEMU Guest Agent can inspect the guest and repair the minimum SSH
+prerequisite without an SSH login. Do not use it for the guest's remaining
+work after direct SSH has been restored.
 
 Run Proxmox CLI commands such as `qm` on the authenticated Proxmox node, not on
 the workstation. In `qm guest exec <VMID> -- <command> <args>`, the command and
@@ -209,16 +230,18 @@ same input stream for a script.
    write if its contents or metadata have changed since inspection. Persist
    the operation identity before dispatch. If the result is lost or invalid,
    inspect that operation and the actual file before considering a retry.
-5. From the requesting workstation, verify a key-only login using the intended
-   identity, batch mode and strict host-key checking. Confirm guest hostname,
-   administrator identity and passwordless sudo. Reinspect the authorized-key
-   file to prove that the approved key occurs once and existing entries remain
-   equal. An unchanged rerun must make no key-file mutation.
-6. Record exact target, account, key fingerprint, recovery route and verified
+5. From the requesting workstation, verify direct key-only SSH using the
+   intended identity, batch mode and strict host-key checking. Confirm guest
+   hostname, administrator identity and passwordless sudo. Reinspect the
+   authorized-key file to prove that the approved key occurs once and existing
+   entries remain equal. This is the handoff point: perform all remaining guest
+   work over SSH, not through Proxmox or the guest agent. An unchanged rerun
+   must make no key-file mutation.
+6. Record exact target, account, key fingerprint, SSH bootstrap/repair method and verified
    outcome in the ignored inventory and service handoff. Keep live identifiers,
    key material and incident history out of the tracked procedure.
 
-This recovery adds an administrator's approved public key; it does not require
+This SSH repair adds an administrator's approved public key; it does not require
 changing SSH daemon policy, enabling root or Tailscale SSH in the guest,
 restarting services, rebooting the VM, or changing network exposure.
 
@@ -391,13 +414,14 @@ credential in that case. See the installed version's
    save it to a file. In this legacy layout, retain slot 0 for the existing
    console passphrase and use slot 1 for automation only after confirming slot
    1 is empty. If the slots differ or slot 1 is occupied, stop and review the
-   layout. The following is a guest-side script: `dmsetup` and `cryptsetup`
-   must run as root inside the already-unlocked VM, not on the workstation or
-   Proxmox node. Invoke it through the approved Proxmox guest-agent route using
-   `qm guest exec <VMID> --pass-stdin 1 -- /bin/bash -c <guest-script>`; when
-   tunneled over SSH, redirect the protected automation-key file to the SSH
-   command's standard input. Pass the guest script as a command argument with
-   safe quoting; standard input is reserved for the key bytes.
+   layout. The following is a guest-side script: `dmsetup` and `cryptsetup` must
+   run as root inside the already-unlocked VM, not on the workstation or
+   Proxmox node. Run it over the VM's verified direct SSH connection using the
+   protected-input method from step 4; keep the script separate from the
+   protected key bytes. Do not use Proxmox/QGA for guest administration after
+   direct SSH works. If SSH is not yet available, use Proxmox/QGA only for the
+   minimum SSH setup or repair, verify strict key-only direct SSH, then run the
+   guest operation over SSH.
 
    Example guest-side command shape (replace placeholders only with
    independently verified, non-secret values):
@@ -490,12 +514,14 @@ remove the old key from both the live header and operational header backups.
    in ignored local inventory and handoff files only.
 
 A keyslot provides another way to unlock the same volume; it does not provide
-a pre-boot network path. If the OS root is encrypted, normal SSH, Tailscale, and
-the guest agent become available only after root unlock. Establish a separate
-pre-boot recovery route or migrate to the bootable-OS/separate-data-disk design
-before relying on remote unlock. Verify a real locked boot only after the
-recovery route is ready. Never remove an old key or recovery copy without
-explicit authorization.
+a boot-time unlock method. If the OS root is encrypted, normal SSH, Tailscale,
+and the guest agent become available only after root unlock. Before relying on
+remote data-volume unlock, establish a supported boot-time unlock method so the
+OS can start and direct SSH can become available. A Proxmox console may be used
+only for this pre-SSH boot prerequisite; after SSH works, use direct SSH for all
+guest administration. Verify the locked boot state only after the boot method
+is ready. Never remove an old key or credential copy without explicit
+authorization.
 
 ### Grow existing guest storage
 
@@ -1090,3 +1116,87 @@ successful update, repeat health, exposure, and persistence checks. When
 retiring a service, identify its VM, disks, DNS, certificates, backups, and
 external integrations, then obtain explicit authorization before deleting any
 of them.
+
+## 14. Mirror n8n workflow definitions to private Git
+
+This procedure backs up workflow definitions only. It is a useful application-level recovery layer, not a backup of the n8n database, VM, application data, credentials, binary files, or execution history. Follow the [n8n service note](docs/services/n8n.md#workflow-definition-git-backups) alongside this runbook.
+
+### Prerequisites
+
+- Create a private destination repository and select its default branch. Use a dedicated GitHub fine-grained token restricted to that repository with Contents write permission. Do not reuse a broad interactive GitHub CLI token for the workflow.
+- Create a separate n8n Public REST API key through the authenticated n8n settings UI. Current n8n versions may label this page “n8n API” or “API keys”; the Public REST API does not provide a key-creation endpoint. On self-hosted Community, each Public API key has full account access, so treat it as a high-privilege credential even though the backup workflow only reads definitions. See the [n8n API authentication guide](https://docs.n8n.io/connect/n8n-api/authentication/).
+- Store each token as its own encrypted n8n header-auth credential. The n8n workflow uses the Public API credential for n8n API calls and the GitHub credential for repository calls. Never put either value in workflow parameters, exported JSON, code, logs, or execution data. Do not use the instance-level MCP bearer as a substitute for the Public API key.
+- Confirm that the n8n runtime can reach the instance's Public API endpoint and GitHub's REST API, and that the built-in Schedule Trigger, HTTP Request, and Code nodes are available. No third-party community node is required.
+- Ensure workflow definitions contain no hard-coded secrets. Treat the private repository as sensitive because definitions can reveal internal logic, service names, and credential references.
+
+### Build and first acceptance
+
+1. Create the backup workflow as an inactive draft. Configure a schedule and timezone, the two separate credentials, and execution settings that retain no success, error, manual, or progress data where supported. Keep Available in MCP off unless an operator specifically needs MCP execution.
+2. Read the complete workflow list from the Public REST API. Use cursor pagination, follow every next-cursor value until the API returns no next cursor, and fetch each listed workflow's full definition. Include active, inactive, and archived workflows. The maximum page size is documented in the [pagination guide](https://docs.n8n.io/connect/n8n-api/pagination/).
+3. Fail closed if a page is missing, truncated, repeated, or malformed; if workflow IDs are duplicated; or if any detail response is missing or disagrees with the list. Do not write a partial manifest or delete repository files when inventory completeness is uncertain.
+4. Normalize each definition into one canonical file at workflows/<workflow-id>.json. Keep a manifest at the repository root that records the complete workflow ID set and active/archived state. Exclude credential secret values, executions, pinned data, static execution data, and binaries. Preserve credential references only when needed to reconnect the workflow.
+5. Compare the manifest's unique ID set with the fully paginated inventory, and confirm exactly one canonical file per current ID. Confirm that archived workflows are present. Verify the repository is private before the first write.
+6. Run the workflow once manually. A successful changed backup creates a Git commit containing the canonical files and manifest. If execution history is disabled, a missing manual execution record is expected; verify the Git commit and its contents instead. If the backup is already current and creates no commit, compare the manifest and canonical file set directly with the complete live inventory.
+7. Only after the complete backup is verified, remove dated or duplicate snapshot files from the current repository tree. Git history retains earlier versions. Keep the cleanup in one normal commit; never force-push or rewrite history.
+8. Publish the scheduled workflow only after acceptance. Run it once against the published state or wait for its scheduled run, then confirm the manifest includes the backup workflow itself with its active state and that all IDs still match. Keep Available in MCP off afterward. If native MCP access is needed for a one-time test, change the setting through the workflow settings UI, then restore it and verify the final setting there.
+
+### Routine operation and failures
+
+A no-change scheduled run may create no commit. Verify the current manifest and canonical files against a fresh complete inventory rather than requiring a new commit every time. After a workflow is added, archived, restored, or deleted, confirm that the next complete run updates the manifest and current file set.
+
+Distinguish n8n Public API authentication errors from GitHub authentication or permission errors. An incomplete page, failed workflow-detail read, truncated Git tree, branch race, or GitHub rejection must not be treated as a complete backup. The workflow should compare the current branch before updating it and must not force-update the branch. For an ambiguous write, inspect the repository's current commit and manifest before considering another run; do not launch a duplicate execution just because a status read failed.
+
+### Restore
+
+1. Clone the private repository and select the commit to restore. Review the manifest and the workflow JSON files before importing them.
+2. Import definitions into the target n8n instance as inactive workflows. Recreate credentials from the approved secret store and map each credential reference to the target instance's credential. The repository does not contain secret values, so it cannot restore credentials by itself.
+3. Validate the imported workflows and their dependencies before publishing or enabling schedules. Restore the n8n database, VM, binary data, and other application data through their separate backup procedures.
+
+## Workstation-local rootless Quadlets
+
+Use this procedure for workstation tools that are designed to run as a
+user-owned Podman container. It does not replace the dedicated-VM service
+deployment path above.
+
+Place each `.container` Quadlet in
+`~/.config/containers/systemd/<name>.container` for the account that owns the
+container and its persistent data. Keep API ports bound to loopback unless a
+separate access design authorizes broader exposure. Preserve data directories
+when recreating or removing a container.
+
+To start and inspect a generated service:
+
+```sh
+systemctl --user daemon-reload
+systemctl --user start example.service
+systemctl --user --no-pager status example.service
+```
+
+Replace `example` with the Quadlet file's basename.
+
+Quadlet processes the file's `[Install]` section while generating the unit.
+Use `WantedBy=default.target` for a user service that should start whenever its
+user manager starts. Generated units are not enabled with
+`systemctl --user enable`; start them with `systemctl --user start`. A user
+manager normally runs with the user's login session. If the service must run
+without an interactive login, `sudo loginctl enable-linger "$USER"` starts
+and retains the current user's manager. This affects all of that user's
+services and does not prevent host suspend. For unattended remote work, also
+follow the [remote host availability guide](docs/remote-host-availability.md).
+
+For routine operations, use `systemctl --user restart example.service` and
+`journalctl --user -u example.service --no-pager`, replacing `example` with
+the Quadlet file's basename. Pull a new image explicitly before restarting
+when the Quadlet uses `Pull=missing`; then verify the application, listener
+binding, persistent data, and update behavior.
+
+To remove a Quadlet, stop its generated service, remove only the intended
+`.container` file, and reload the user manager. Keep its persistent data until
+the operator separately authorizes removal. A configured target relationship
+or active unit alone does not prove persistence; verify the required login,
+logout, or reboot behavior for the selected user-manager policy.
+If this procedure enabled lingering and no other user service depends on it,
+restore the prior setting with `sudo loginctl disable-linger "$USER"`.
+
+The [local AI workstation guide](docs/local-ai.md) applies these lifecycle
+steps to Ollama and adds its hybrid-GPU and model-inference checks.

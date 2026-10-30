@@ -1,0 +1,21 @@
+[Unit]
+Description=Local Ollama model server
+After=network-online.target
+
+[Container]
+ContainerName=ollama
+Image=docker.io/ollama/ollama:latest
+Pull=missing
+# Replace the index with the intended entry from `nvidia-ctk cdi list`.
+AddDevice=nvidia.com/gpu=0
+# This disables SELinux label separation for this container; review the guide.
+SecurityLabelDisable=true
+PublishPort=127.0.0.1:11434:11434
+Volume=%h/.ollama:/root/.ollama
+
+[Service]
+Restart=on-failure
+TimeoutStartSec=900
+
+[Install]
+WantedBy=default.target
