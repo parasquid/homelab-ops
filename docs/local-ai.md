@@ -105,11 +105,10 @@ repeatability matters.
 ## Context-window sizing
 
 The context window is the maximum number of tokens held in memory for a model
-request. Ollama's default depends on available VRAM and may be smaller than the
-model's supported maximum. To set the model's full window for a remote
-workflow, pass `options.num_ctx` on each native `/api/chat` request, or set
-`OLLAMA_CONTEXT_LENGTH` only when a server-wide default is intended. Check the
-allocated context with `ollama ps`.
+request. Ollama's default may be smaller than the model's supported maximum.
+To set the model's full window for a remote workflow, pass `options.num_ctx` on
+each native `/api/chat` request, or set `OLLAMA_CONTEXT_LENGTH` only when a
+server-wide default is intended. Check the allocated context with `ollama ps`.
 
 Larger context settings increase memory use. Ollama's per-model parallel
 request setting multiplies the context allocation, so keep calls serialized or
@@ -117,6 +116,29 @@ size concurrency from measured memory headroom when full context is enabled.
 JSON response formatting is available on `/api/chat`; use a JSON schema when
 the workflow needs a strict output shape and validate the response before
 downstream writes.
+
+## Long-context memory and latency
+
+Ollama enables Flash Attention automatically when the selected backend and
+device support it. It can reduce memory use as context grows. Force it with
+`OLLAMA_FLASH_ATTENTION=1` only when an explicit server-wide setting is needed.
+
+The K/V cache uses `f16` by default. When memory is a demonstrated constraint,
+Ollama can use `q8_0` or `q4_0` through `OLLAMA_KV_CACHE_TYPE`; this is a
+global setting that affects every model served by the instance. Quantized
+caches require Flash Attention. `q8_0` uses about half the `f16` cache memory
+with a small precision trade-off. `q4_0` uses about a quarter of the memory,
+with a quality impact that may be more noticeable at long contexts. Compare
+the same representative inputs, context, generation settings, strict
+validators, and timings before adopting either option. Lower cache memory does
+not guarantee faster inference.
+
+To reduce model reload delay between related calls, use the request-level
+`keep_alive` option or the server default `OLLAMA_KEEP_ALIVE`. A request-level
+value overrides the server default. Choose a finite interval based on the
+workflow cadence and available RAM/VRAM; an indefinitely retained model keeps
+those resources occupied while idle. See the [Ollama FAQ](https://docs.ollama.com/faq)
+for current context, cache, parallelism, and model-retention options.
 
 ## Start and verify the service
 
